@@ -14,6 +14,8 @@ Use it when you need to show scheduled work on a classic grid: single-day items 
 
 Peer deps: React 18+, dayjs, react-aria-components (menus and keyboard access).
 
+**Storybook:** [nelmad.github.io/calendar](https://nelmad.github.io/calendar/)
+
 ## Install
 
 ```bash
