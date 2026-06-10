@@ -1,0 +1,107 @@
+{
+  "name": "@nelmad/calendar",
+  "version": "0.1.0",
+  "description": "Month-view task calendar with multi-day events, timezone support, and series actions",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./styles.css": "./dist/index.css",
+    "./tokens.css": "./dist/tokens.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "author": "nelmad",
+  "homepage": "https://github.com/nelmad/calendar#readme",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "vite build --config vite.lib.config.ts && node scripts/bundle-css.mjs && node scripts/verify-dist.mjs",
+    "dev": "vite build --config vite.lib.config.ts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "typecheck:storybook": "tsc -p tsconfig.storybook.json --noEmit",
+    "lint": "eslint . && stylelint \"**/*.css\"",
+    "lint:fix": "eslint . --fix && stylelint \"**/*.css\" --fix",
+    "lint:eslint": "eslint .",
+    "lint:stylelint": "stylelint \"**/*.css\"",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@react-aria/interactions": "^3.25.3",
+    "dayjs": "^1.11.13",
+    "react": ">=18",
+    "react-aria-components": "^1.18.0",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "classnames": "^2.5.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@react-aria/interactions": "^3.25.3",
+    "@storybook/addon-essentials": "8.6.18",
+    "@storybook/react": "8.6.18",
+    "@storybook/react-vite": "8.6.18",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^25.9.2",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "@vitejs/plugin-react": "^4.4.1",
+    "dayjs": "^1.11.13",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^26.1.0",
+    "react": "^18.3.1",
+    "react-aria-components": "^1.18.0",
+    "react-dom": "^18.3.1",
+    "storybook": "8.6.18",
+    "stylelint": "^17.13.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.60.1",
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^5.0.2",
+    "vitest": "^3.2.1"
+  },
+  "keywords": [
+    "react",
+    "calendar",
+    "month-view",
+    "events",
+    "tasks"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nelmad/calendar.git"
+  }
+}
