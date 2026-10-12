@@ -1,0 +1,170 @@
+# Releases @nelmad/calendar through npm staged publishing.
+#
+# The workflow stages the version from package.json through npm trusted
+# publishing (OIDC, no npm token) with provenance. Nothing is public yet: a
+# maintainer approves the staged version with 2FA on npmjs.com (Staged
+# Packages) or with `npm stage approve <stage-id>`. The workflow waits for the
+# approval and then creates the vX.Y.Z tag and GitHub Release; a rerun after a
+# late approval only creates the tag.
+#
+# The npm trusted publisher must name exactly: owner `Nelmad`, repository
+# `calendar`, workflow `release.yml`, environment `npm-publish`, with only
+# staged publishing allowed. See RELEASING.md.
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: npm-publish
+    permissions:
+      contents: write # create the tag and the GitHub Release after approval
+      id-token: write # npm trusted publishing and provenance
+    env:
+      APPROVAL_WAIT_SECONDS: 1800
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Resolve version, dist-tag and release state
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          case "${version}" in
+            *-*) dist_tag=next; prerelease=true ;;
+            *) dist_tag=latest; prerelease=false ;;
+          esac
+          live="$(npm view "${name}@${version}" version --prefer-online 2>/dev/null || true)"
+          if [ "${live}" = "${version}" ]; then published=true; else published=false; fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v${version}" >/dev/null 2>&1; then
+            tagged=true
+          else
+            tagged=false
+          fi
+          {
+            echo "name=${name}"
+            echo "version=${version}"
+            echo "dist_tag=${dist_tag}"
+            echo "prerelease=${prerelease}"
+            echo "published=${published}"
+            echo "tagged=${tagged}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "${name}@${version}: published=${published}, tagged=${tagged}, dist-tag=${dist_tag}"
+
+      - name: Install dependencies
+        if: steps.release.outputs.published == 'false'
+        run: npm ci
+
+      # Build explicitly instead of relying on prepublishOnly during staging,
+      # and refuse to stage a tarball that lacks a path package.json declares.
+      - name: Typecheck, test, build and check the tarball
+        if: steps.release.outputs.published == 'false'
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+          node scripts/check-pack.mjs
+
+      # Staged publishing needs npm >= 11.15.0; Node 22 ships npm 10. Upgrade
+      # only now, so install and tests run with the same npm as the CI workflow.
+      - name: Use npm with staged publishing support
+        if: steps.release.outputs.published == 'false'
+        run: npm install --global npm@11.21.0
+
+      # A version that is already staged (a rerun before approval) is reported,
+      # not treated as a failure.
+      - name: Stage the version on npm
+        if: steps.release.outputs.published == 'false'
+        env:
+          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
+        run: |
+          set +e
+          npm stage publish --tag "${DIST_TAG}" --provenance 2>&1 | tee stage.log
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### npm stage publish"
+            echo '```'
+            cat stage.log
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${status}" -ne 0 ]; then
+            if grep -Eiq 'E409|409 Conflict|already exists|cannot publish over' stage.log; then
+              echo "::notice::This version is already staged or published; approve it on npmjs.com."
+            else
+              exit "${status}"
+            fi
+          fi
+
+      - name: Wait for approval on npmjs.com
+        id: approval
+        if: steps.release.outputs.published == 'false'
+        env:
+          NAME: ${{ steps.release.outputs.name }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          echo "::notice::Approve ${NAME}@${VERSION} on npmjs.com → Staged Packages (2FA). Waiting up to $((APPROVAL_WAIT_SECONDS / 60)) minutes."
+          deadline=$(( $(date +%s) + APPROVAL_WAIT_SECONDS ))
+          while [ "$(date +%s)" -lt "${deadline}" ]; do
+            live="$(npm view "${NAME}@${VERSION}" version --prefer-online 2>/dev/null || true)"
+            if [ "${live}" = "${VERSION}" ]; then
+              echo "approved=true" >> "${GITHUB_OUTPUT}"
+              echo "${NAME}@${VERSION} is live on npm."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "approved=false" >> "${GITHUB_OUTPUT}"
+          echo "::warning::${NAME}@${VERSION} is not approved yet. Approve it on npmjs.com, then rerun this workflow to create the tag and GitHub Release."
+
+      # The tag is created only after the version is live on npm, so a tag
+      # always points at a published release.
+      - name: Create tag and GitHub Release
+        if: >-
+          steps.release.outputs.tagged == 'false' &&
+          (steps.release.outputs.published == 'true' || steps.approval.outputs.approved == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          awk -v version="${VERSION}" '
+            $0 ~ "^## \\[" version "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See CHANGELOG.md." > release-notes.md
+          fi
+          flags=()
+          if [ "${PRERELEASE}" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "v${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --title "v${VERSION}" \
+            --notes-file release-notes.md \
+            "${flags[@]}"
