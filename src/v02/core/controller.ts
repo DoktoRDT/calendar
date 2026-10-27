@@ -39,9 +39,12 @@ export function requestNavigation(state: NavigationState, snapshot: NavigationSn
     }
     return {state: {...state, intent: {month, date, source}}, navigate: month, blocked: false} as const;
 }
-/** Blocking wins over matching acceptance, even when both arrive in one commit. */
+/**
+ * Blocking wins over matching acceptance, even when both arrive in one commit. `external`: the month changed without
+ * matching the current request (none, a cancelled or a replaced one), which cancels a selection draft (#11 decision Q7).
+ */
 export function commitNavigation(state: NavigationState, snapshot: NavigationSnapshot | null, owner: FocusOwner) {
-    if (!snapshot) return {state: {...state, intent: null}};
+    if (!snapshot) return {state: {...state, intent: null}, external: false};
     const date = navigationDate(state, snapshot), changed = state.month !== snapshot.month;
     const intent = snapshot.blocking ? null : state.intent;
     const matches = changed && intent?.month === snapshot.month;
@@ -51,6 +54,7 @@ export function commitNavigation(state: NavigationState, snapshot: NavigationSna
         state: {month: snapshot.month, date: target, intent: changed || snapshot.blocking ? null : intent},
         focus: !snapshot.blocking && (canFocus || (owner.grid && state.date !== target)) ? target : undefined,
         announce: matches && intent.source === 'toolbar' && owner.calendar && !owner.grid ? snapshot.month : undefined,
+        external: changed && !matches,
     };
 }
 

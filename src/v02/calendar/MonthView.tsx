@@ -9,6 +9,7 @@ import {useServerStyle} from '../primitives/serverStyle.js';
 import {useMessageDiagnostics, type CalendarController} from './useCalendarController.js';
 import type {CalendarDataModel, CalendarModel} from './model.js';
 import {AccentMarker, SlotContent, classes, resolveClass, surfaceStyle} from './slots.js';
+import {SelectionReason} from './SelectionControls.js';
 
 export type DateActivation = (date: string, input: 'pointer' | 'keyboard') => void;
 /** `popup`: the resolved agenda is an overlay (popover/sheet); inline agenda cells carry no popup attributes. */
@@ -18,7 +19,7 @@ export function MonthView<I, S>(props: MonthProps<I, S>) {
     return props.controller.model.kind === 'data' && props.controller.model.index ? <DataMonth {...props} model={props.controller.model}/> : null;
 }
 function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, openAgendaDate}: MonthProps<I, S> & {model: CalendarDataModel<I, S>}) {
-    const id = useId(), {props, index, state} = model, {gridRef, weekdaysRef, registerCell} = controller;
+    const id = useId(), {props, index, state} = model, {gridRef, weekdaysRef, registerCell, selection} = controller;
     useMessageDiagnostics(model as CalendarModel<unknown, unknown>, controller.warn);
     // Mobile shows indicators, not lanes: no row observer is needed there (§11.3).
     const rows = useMonthMeasurements(gridRef, `${model.range.start}/${model.range.end}/${state.layout}/${state.density}/${model.lang}`, state.layout === 'desktop');
@@ -42,6 +43,7 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
     const keyDown = (event: KeyboardEvent<HTMLDivElement>, date: string, column: number) => {
         pointerDate.current = null;
         if (event.altKey || event.ctrlKey || event.metaKey) return;
+        if (selection.onKey(event, date)) return;
         if (event.key === 'Enter') { event.preventDefault(); activate(date, 'keyboard'); }
         else if (event.key === 'PageUp' || event.key === 'PageDown') {
             event.preventDefault(); controller.navigateGridMonth((event.key === 'PageDown' ? 1 : -1) * (event.shiftKey ? 12 : 1));
@@ -57,6 +59,8 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
         });
         const date = hitDate(event.clientX, columns, segment.segmentRange);
         if (!date) return;
+        // Decision Q11: in range mode a segment press is a tap on its hit-tested date, never onItemPress or a view.
+        if (selection.onDatePress(date)) { controller.navigate(date, 'grid'); return; }
         controller.navigate(date, 'grid');
         if (props.onItemPress) props.onItemPress({item: segment.entry.record.item, date, view: 'month', segmentRange: {...segment.segmentRange}});
         else onDateActivate(date, 'pointer');
@@ -67,7 +71,8 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
         {/* Review 2026-10-09-3: a separate sentence in the computed description, also after a `messages` text without a final period. */}
         {boundary && <>{' '}<LocalizedText value={model.message('navigationBoundaryReason')}/></>}</span>
     <div ref={gridRef} role="grid" className={classes('nc-month', resolveClass(props.classNames?.grid, state))} style={style}
-        aria-labelledby={headingId} aria-describedby={`${id}-instructions`} aria-colcount={7} aria-rowcount={index!.weeks.length + 1}
+        aria-labelledby={headingId} aria-describedby={selection.rangeMode ? `${id}-instructions ${id}-range-instructions` : `${id}-instructions`}
+        aria-colcount={7} aria-rowcount={index!.weeks.length + 1} onBlur={selection.onGridBlur}
         aria-multiselectable={selectionEnabled ? true : undefined} aria-busy={state.dataState.status === 'loading' ? true : undefined}>
         <div aria-hidden="true" className="nc-month-probes"><div className="nc-month-item-probe">M</div><div className="nc-month-overflow-probe">+1</div></div>
         <div ref={weekdaysRef} role="row" aria-rowindex={1} className="nc-month-weekdays">
@@ -81,29 +86,38 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
                 const fitted = fitWeekLanes(week, desktop ? rowLaneCapacity(metrics) : {withoutOverflow: 0, withOverflow: 0});
                 return <div key={week.dates[0]} role="row" aria-rowindex={weekIndex + 2} data-week={week.dates[0]} className="nc-month-week">
                     {fitted.days.map((day, column) => {
+                        // Decision Q4: the core boundary or canSelectDate (never canSelectRange) marks a date, SSR included.
+                        const block = selection.dateBlock(day.date);
                         const dayState: CalendarDayState = {date: day.date, isToday: day.date === controller.today, isAgendaDate: day.date === controller.agendaDate,
-                            isSelected: !!props.selection && inRange(day.date, props.selection), isSelectionDraft: false, isSelectionUnavailable: false,
-                            isOutsideMonth: monthStart(day.date) !== model.month, itemCount: day.itemCount};
+                            isSelected: !!props.selection && inRange(day.date, props.selection), isSelectionDraft: selection.isDraftDate(day.date), isSelectionUnavailable: !!block,
+                            ...(block ? {unavailableReason: selection.reason(block)} : {}), isOutsideMonth: monthStart(day.date) !== model.month, itemCount: day.itemCount};
                         const cellId = `${id}-${day.date}`;
                         return <div key={day.date} ref={node => registerCell(day.date, node)} role="gridcell" aria-colindex={column + 1}
                             aria-haspopup={popup ? 'dialog' : undefined} aria-expanded={popup ? day.date === openAgendaDate : undefined}
                             aria-labelledby={`${cellId}-label`} aria-describedby={`${cellId}-description`} aria-current={dayState.isToday ? 'date' : undefined}
                             aria-selected={selectionEnabled ? dayState.isSelected : undefined} tabIndex={controller.focusDate === day.date ? 0 : -1}
                             data-date={day.date} data-today={dayState.isToday || undefined} data-agenda-date={dayState.isAgendaDate || undefined}
-                            data-selected={dayState.isSelected || undefined} data-outside-month={dayState.isOutsideMonth || undefined} data-has-items={!!day.itemCount || undefined}
+                            data-selected={dayState.isSelected || undefined} data-selection-draft={dayState.isSelectionDraft || undefined}
+                            data-selection-unavailable={dayState.isSelectionUnavailable || undefined}
+                            data-outside-month={dayState.isOutsideMonth || undefined} data-has-items={!!day.itemCount || undefined}
                             className={classes('nc-day', resolveClass(props.classNames?.day, dayState))}
-                            onPointerDown={event => pressCell(event.currentTarget, day.date)}
+                            onPointerDown={event => { selection.onCellPointerDown(event, day.date); pressCell(event.currentTarget, day.date); }}
                             onFocus={event => {
                                 controller.onDateFocus(day.date);
-                                if (pointerDate.current !== day.date) event.currentTarget.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+                                // The focus of a desktop drag's drop moves to the endpoint without scrolling (decision Q5).
+                                const quiet = selection.onDateFocus(day.date, pointerDate.current === day.date);
+                                if (pointerDate.current !== day.date && !quiet) event.currentTarget.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
                                 pointerDate.current = null;
                             }}
-                            onKeyDown={event => keyDown(event, day.date, column)} onClick={() => activate(day.date, 'pointer')}>
+                            onKeyDown={event => keyDown(event, day.date, column)} onClick={() => { if (!selection.onDatePress(day.date)) activate(day.date, 'pointer'); }}>
                             <span id={`${cellId}-label`} className="nc-visually-hidden" lang={model.lang}>{model.format.date(day.date).text}</span>
                             <span id={`${cellId}-description`} className="nc-visually-hidden">
                                 <LocalizedText value={model.message('itemCountLabel', day.date, day.itemCount)}/>{' '}
                                 {dayState.isToday && <><LocalizedText value={model.message('todayStateLabel')}/>{' '}</>}
                                 {dayState.isSelected && <><LocalizedText value={model.message('selectedStateLabel')}/>{' '}</>}
+                                {/* Decision Q4: always the state; the reason only during the selection draft it belongs to. */}
+                                {block && <><LocalizedText value={model.message('unavailableStateLabel')}/>{' '}
+                                    {selection.draftActive && <><SelectionReason model={model} block={block}/>{' '}</>}</>}
                                 {dayState.isAgendaDate && <><LocalizedText value={model.message('viewedDateStateLabel')}/>{' '}</>}
                                 {desktop && day.hiddenCount > 0 && <LocalizedText value={model.message('moreItemsLabel', day.date, day.hiddenCount)}/>}
                             </span>
@@ -141,5 +155,7 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
                 </div>;
             })}
         </div>
-    </div></>;
+    </div>
+    {/* Range mode only, never a held drag; it joins the grid description silently (the entry speaks it once). */}
+    {selection.rangeMode && <span id={`${id}-range-instructions`} className="nc-visually-hidden"><LocalizedText value={model.message('rangeSelectionInstructions')}/></span>}</>;
 }

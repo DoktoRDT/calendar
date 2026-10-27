@@ -44,6 +44,8 @@ function SourceSelectorControl<I, S>({controller, model}: {controller: CalendarC
     const committed = useRef(model);
     useClientLayoutEffect(() => { committed.current = model; });
     const close = useCallback((returnFocus: boolean) => { if (returnFocus) restore.current = true; setOpen(null); }, []);
+    // The toolbar Select range closes an open selector without returning focus to its trigger (#11).
+    useEffect(() => stack.registerDismiss(() => close(false)), [stack, close]);
     // §10.3.4: a new accepted container closes the open selector with recovery; nothing reopens there.
     const {portal, refresh} = usePortalTarget(model.props.portalContainer, rootRef, warn, () => { if (shown) close(true); }, () => shown !== null);
     const toggle = (id: string) => {

@@ -32,6 +32,9 @@ export function createOverlayStack(prefix = '') {
     // focus ownership and, while modal, its single live endpoint (§12.4).
     let aside: Aside | null = null;
     const children = new Map<string, Child>(), live = new Map<string, LiveEndpoints>(), listeners = new Set<() => void>();
+    // How each open package overlay closes itself (the agenda presentation with its children, the standalone selector), so
+    // a command outside them, such as the toolbar Select range, closes them all without focus recovery (#11).
+    const dismissals = new Set<() => void>();
     // Surfaces closed but still connected while React unmounts them; a collection may refocus itself there.
     let retired: HTMLElement[] = [];
     // The agenda root just mounted in a stale default target moves to the new one in the next commit (portal.ts).
@@ -68,6 +71,8 @@ export function createOverlayStack(prefix = '') {
         /** Set by the agenda owner each commit: while its surface moves, the owner, not the view, recovers displaced focus. */
         setMoving(value: boolean) { moving = value; },
         moving: () => moving,
+        registerDismiss(close: () => void) { dismissals.add(close); return () => { dismissals.delete(close); }; },
+        dismissAll() { for (const close of [...dismissals]) close(); },
         /** Registers the open standalone overlay; the cleanup forgets it and its live endpoints. */
         setAside(entry: Aside) {
             aside = entry; emit();

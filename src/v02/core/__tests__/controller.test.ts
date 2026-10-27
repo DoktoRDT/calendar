@@ -29,6 +29,18 @@ describe('navigation transition kernel', () => {
         expect(stale.state.intent).toBeNull(); expect(stale.focus).toBeUndefined(); expect(stale.announce).toBeUndefined();
         expect(commitNavigation(first, snapshot('2026-03-01'), grid).focus).toBe('2026-03-31');
     });
+    it('reports a month change that matches no current request as external (#11 decision Q7)', () => {
+        const owner = {grid: false, calendar: true, initiator: false};
+        for (const source of ['grid', 'today', 'toolbar'] as const) {
+            const requested = requestNavigation(january, snapshot(january.month), '2026-02-14', source).state;
+            expect(commitNavigation(requested, snapshot('2026-02-01'), owner).external).toBe(false);
+            // A cancelled intent (Tab away, an unrelated key or press) and a replaced one make a later acceptance external.
+            expect(commitNavigation({...requested, intent: null}, snapshot('2026-02-01'), owner).external).toBe(true);
+            expect(commitNavigation(requested, snapshot('2026-03-01'), owner).external).toBe(true);
+        }
+        expect(commitNavigation(january, snapshot(january.month), owner).external).toBe(false);
+        expect(commitNavigation(january, null, owner).external).toBe(false);
+    });
     it('gates Today on the initiator and toolbar announcement on calendar focus', () => {
         const today = requestNavigation(january, snapshot(january.month), '2026-02-14', 'today').state;
         expect(commitNavigation(today, snapshot('2026-02-01'), {grid: false, calendar: true, initiator: true}).focus).toBe('2026-02-14');

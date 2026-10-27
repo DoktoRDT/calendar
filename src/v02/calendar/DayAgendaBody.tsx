@@ -1,4 +1,4 @@
-import {useId, useRef, type RefObject} from 'react';
+import {useId, useRef, type ReactNode, type RefObject} from 'react';
 import type {CalendarAgendaItemSlotContext} from '../reference.js';
 import {LocalizedText} from '../LocalizedText.js';
 import {Button, IconButton, Icon} from '../primitives/index.js';
@@ -7,18 +7,22 @@ import {AccentMarker, SlotContent, classes, resolveClass, surfaceStyle} from './
 import type {CalendarDataModel} from './model.js';
 import {ItemActionsButton} from './overlays.js';
 
-/** Shared semantic content; presentation owns heading focus, close and portal behavior. */
-export function DayAgendaBody<I, S>({model, date, heading, headingId, onClose}: {
-    model: CalendarDataModel<I, S>; date: string; heading: RefObject<HTMLHeadingElement>; headingId: string; onClose?: () => void;
+/**
+ * Shared semantic content; presentation owns heading focus, close and portal behavior. `select`: the Select day control
+ * (#11), after the count; without it the element structure, and so the server ids, stay as in a viewer.
+ */
+export function DayAgendaBody<I, S>({model, date, heading, headingId, onClose, select}: {
+    model: CalendarDataModel<I, S>; date: string; heading: RefObject<HTMLHeadingElement>; headingId: string; onClose?: () => void; select?: ReactNode;
 }) {
     const entries = model.index!.agenda(date), id = useId();
+    const count = <p className="nc-day-list-count"><LocalizedText value={model.message('itemCountLabel', date, entries.length)}/></p>;
     return <>
         <div className="nc-day-list-heading">
             <h3 ref={heading} id={headingId} tabIndex={-1}><LocalizedText value={model.message('agendaHeading', date)}/></h3>
             {onClose && <IconButton data-agenda-close lang={model.message('closeAgendaLabel').lang} aria-label={model.message('closeAgendaLabel').text}
                 onPress={onClose}><Icon name="close"/></IconButton>}
         </div>
-        <p className="nc-day-list-count"><LocalizedText value={model.message('itemCountLabel', date, entries.length)}/></p>
+        {select ? <>{count}{select}</> : count}
         {entries.length ? <ul>{entries.map((entry, index) => <AgendaRow key={entry.record.item.id} model={model} entry={entry} index={index} id={id} date={date}/>)}</ul> : <p className="nc-day-list-empty"><LocalizedText value={model.message('agendaEmpty')}/></p>}
     </>;
 }

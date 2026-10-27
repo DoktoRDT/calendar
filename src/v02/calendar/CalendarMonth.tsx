@@ -15,6 +15,7 @@ import {activeElement, revealFocused} from './dom.js';
 import {available, composedParent, containsComposed, displaced, focusAvailable, logicalExit, tabbables} from './focus.js';
 import {ActionsPresentationContext, ItemActionsContext, ModalLiveEndpoints, OverlayChildren, OverlayProvider, type ItemActionsScope} from './overlays.js';
 import {SourceSelector} from './SourceSelector.js';
+import {SelectDay, SelectionLine, SelectionToolbar} from './SelectionControls.js';
 import {usePortalTarget} from './portal.js';
 import type {CalendarModel} from './model.js';
 
@@ -27,8 +28,11 @@ export function CalendarMonth<I, S>(props: CalendarProps<I, S>) {
 }
 /** The public facade passes its prerelease surface; validation then enforces its layouts. */
 export function CalendarMonthRoot<I, S>({input, surface}: {input: CalendarProps<I, S>; surface?: CalendarSurface}) {
+    // A viewer keeps exactly the alpha.2 element structure (and so the server ids); the selection group precedes the source selector.
     return <CalendarShell input={input} surface={surface} renderView={(controller, headingId) => <MonthSurface controller={controller} headingId={headingId}/>}
-        renderToolbarControls={controller => <SourceSelector controller={controller}/>}/>;
+        renderToolbarControls={controller => controller.selection.enabled
+            ? <><SelectionToolbar controller={controller}/><SourceSelector controller={controller}/></> : <SourceSelector controller={controller}/>}
+        renderModeLine={controller => controller.selection.enabled ? <SelectionLine controller={controller}/> : null}/>;
 }
 /** `accepted`: the target was accepted with focus still on its origin; the overlay opens next commit. */
 type Intent = {date: string; previous: string; origin: Element | null; input: 'pointer' | 'keyboard'; accepted: boolean};
@@ -36,9 +40,11 @@ type Intent = {date: string; previous: string; origin: Element | null; input: 'p
  * Stable logical focus key: item + control, heading, close or the container, plus the date the surface showed.
  * Focus inside a child overlay is keyed by its trigger in the agenda: a switch closes the child (§12.3 step 1).
  */
-type FocusKey = {node: HTMLElement; item?: string; control?: string; heading: boolean; close: boolean; container: boolean; date: string; child: boolean};
+type FocusKey = {node: HTMLElement; item?: string; control?: string; heading: boolean; close: boolean; select: boolean; container: boolean; date: string; child: boolean};
 type Recovery = {node: Element | null; date: string | null};
 const agendaOwner = 'agenda';
+/** Select day stays focusable while `aria-disabled` (#11 decision Q1): the same control, not a disabled or removed one. */
+const selectDay = (node: HTMLElement | null | undefined): node is HTMLElement => !!node?.hasAttribute('data-agenda-select') && !!node.parentElement && available(node.parentElement);
 /** The composed ancestor chain of a node, like an event's composed path. */
 function composedPath(node: Element) {
     const path: EventTarget[] = [];
@@ -115,6 +121,8 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
     };
     const closeLatest = useRef(close);
     useClientLayoutEffect(() => { closeLatest.current = close; });
+    // The toolbar Select range closes the agenda presentation with its child menus; it moves focus itself (#11).
+    useEffect(() => stack.registerDismiss(() => closeLatest.current(false)), [stack]);
     // §10.3.4/R53: a new accepted container closes the stack top-down with §12.3 recovery, never reopening.
     // The document is observed only while the agenda overlay or a child of the agenda is open (§11.3).
     const {portal, refresh: refreshPortal, resolved: resolvedPortal} = usePortalTarget(requestedPortal, rootRef, controller.warn, () => {
@@ -186,14 +194,16 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
     const restoreOwned = useCallback((document: Document, surface: HTMLElement | null) => {
         const old = ownedFocus.current, active = activeElement(document);
         const owned = !!old && owner !== null && (active === old.node || displaced(document, old.node));
-        if (!old || !owned || (available(old.node) && !!surface && stack.contains(old.node))) return owned;
+        if (!old || !owned || ((available(old.node) || selectDay(old.node)) && !!surface && stack.contains(old.node))) return owned;
         // Focus in a child that its stack closed (with its row trigger gone, R41) is the stack's §12.3 step 2 recovery, which
         // runs once the child surface is removed: the parent agenda stays open.
         if (old.child && stack.recovering()) return owned;
         const controls = [...surface?.querySelectorAll<HTMLElement>('[data-agenda-control]') ?? []];
         const replacement = old.item ? controls.find(node => node.closest<HTMLElement>('[data-item-id]')?.dataset.itemId === old.item && node.dataset.agendaControl === old.control)
-            : old.heading ? heading.current : old.close ? surface?.querySelector<HTMLElement>('[data-agenda-close]') : old.container ? surface : undefined;
+            : old.heading ? heading.current : old.close ? surface?.querySelector<HTMLElement>('[data-agenda-close]')
+                : old.select ? surface?.querySelector<HTMLElement>('[data-agenda-select]') : old.container ? surface : undefined;
         if (surface && focusAvailable(replacement)) return owned;
+        if (surface && selectDay(replacement)) { replacement.focus({preventScroll: true}); if (activeElement(document) === replacement) return owned; }
         // Missing logical control: §12.3 from the date cell, never a newly opened overlay.
         ownedFocus.current = null;
         if (overlay) { setOwner(null); setMounted(null); pendingRecovery.current = {node: old.node, date: old.date}; }
@@ -317,13 +327,15 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
             if (!event.currentTarget.contains(node) && !stack.contains(node)) return;
             const logical = stack.rootTrigger(stack.ownerOf(node)) ?? node;
             ownedFocus.current = {child: logical !== node, node, item: logical.closest<HTMLElement>('[data-item-id]')?.dataset.itemId, control: logical.dataset.agendaControl,
-                heading: logical === heading.current, close: logical.hasAttribute('data-agenda-close'), container: logical === event.currentTarget, date};
+                heading: logical === heading.current, close: logical.hasAttribute('data-agenda-close'), select: logical.hasAttribute('data-agenda-select'),
+                container: logical === event.currentTarget, date};
             setOwner(presentation);
             controller.onViewFocus(node);
         }}>
         <OverlayProvider value={overlayScope}><ItemActionsContext.Provider value={actions}>
             {presentation === 'sheet' && <ModalLiveEndpoints owner={agendaOwner} stack={stack}/>}
-            <DayAgendaBody model={model} date={date} heading={heading} headingId={`${id}-heading`} onClose={presentation === 'inline' ? undefined : () => close()}/>
+            <DayAgendaBody model={model} date={date} heading={heading} headingId={`${id}-heading`} onClose={presentation === 'inline' ? undefined : () => close()}
+                select={controller.selection.enabled ? <SelectDay controller={controller} model={model} date={date}/> : undefined}/>
             <OverlayChildren parent={agendaOwner} root={{modal: presentation === 'sheet', element: () => agendaRef.current, fallback: () => heading.current ?? agendaRef.current}}/>
         </ItemActionsContext.Provider></OverlayProvider>
     </section>;
