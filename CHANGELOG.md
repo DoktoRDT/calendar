@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `CalendarMessages.selectionDraftStateLabel` (en-US "In selection", ru-RU "В выделении"), the state label of date cells inside a selection draft. Nothing displays it yet; selection is planned for `0.2.0-beta.1`. Code that types a complete `CalendarMessages` object must add the key; partial `messages` overrides are unaffected.
+
 ## [0.2.0-alpha.2] - 2026-10-26
 
 The first `0.2` prerelease published to npm. It is on the `next` dist-tag and `latest` stays `0.1.1`, so a plain
