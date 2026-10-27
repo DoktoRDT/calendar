@@ -370,23 +370,22 @@ describe('what cancels a draft', () => {
         await user.keyboard(' ');
         expect(changes(props)).toEqual([range('2026-09-10', '2026-09-12')]);
     });
-    it('focus leaving the grid and the Calendar keeps the draft; Shift+Tab back into the grid moves the endpoint (decision Q14)', async () => {
-        const user = userEvent.setup(), props = selecting();
-        render(<StrictMode><CalendarMonth {...props}/><button>After</button></StrictMode>);
+    it('focus leaving the grid keeps the draft; after an accepted toolbar month, Tab back into the grid moves the endpoint (decisions Q7, Q14)', async () => {
+        const user = userEvent.setup(), onNavigate = vi.fn(), props = selecting({onNavigate});
+        const view = render(tree(props));
         await user.click(button('Select range'));
         await keys(user, '2026-09-10', ' {ArrowRight}{ArrowRight}');
-        await user.tab();
-        expect(button('After')).toHaveFocus(); expect(draft()).toBe(3);
-        // The roving cell is the last focused date, 12 September; returning to it keeps the endpoint there.
+        await user.click(button('Next month'));
+        expect(onNavigate).toHaveBeenLastCalledWith('2026-10-01'); expect(button('Next month')).toHaveFocus();
         live.read();
-        await user.tab({shift: true});
-        expect(cell('2026-09-12')).toHaveFocus(); expect(draft()).toBe(3); expect(live.read()).toEqual([]);
-        // Focus that lands on another date cell from outside moves the endpoint and speaks the new target once.
-        await user.tab();
-        act(() => cell('2026-09-14').focus());
-        expect(draft()).toBe(5); expect(live.read()).toEqual(['polite: Range: Sep 10, 2026 – Sep 14, 2026. Available']);
+        view.rerender(tree({...props, anchorDate: '2026-10-01'} as CalendarProps));
+        // While focus is outside the grid the endpoint stays on 12 September.
+        expect(document.querySelector('.nc-selection-line')).not.toBeNull(); expect(live.read()).toEqual(['polite: Showing October 2026']);
+        while (!document.activeElement?.matches('[role=gridcell]')) await user.tab();
+        expect(document.activeElement).toBe(cell('2026-10-12'));
+        expect(live.read()).toEqual(['polite: Range: Sep 10, 2026 – Oct 12, 2026. Available']);
         await user.keyboard(' ');
-        expect(changes(props)).toEqual([range('2026-09-10', '2026-09-15')]);
+        expect(changes(props)).toEqual([range('2026-09-10', '2026-10-13')]);
     });
     it('an external month change cancels silently; a matching toolbar acceptance keeps the draft', async () => {
         const onNavigate = vi.fn(), props = selecting({onNavigate}), {user, view} = await open(props);
