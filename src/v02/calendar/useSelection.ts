@@ -1,10 +1,9 @@
 import {useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type RefObject} from 'react';
 import type {CalendarDateRange} from '../reference.js';
 import type {LocalizedText} from '../core/formatting.js';
-import type {PolicyDiagnostic} from '../core/policy.js';
 import {inRange} from '../core/controller.js';
 import {activateDraft, checkDate, checkRange, checkSelection, draftRange, moveEndpoint, rangeMode, reconcileSelection, sameRange,
-    type SelectionBlock, type SelectionDraft, type SelectionOutcome, type SelectionRequest} from '../core/selection.js';
+    type PolicyDiagnostic, type SelectionBlock, type SelectionDraft, type SelectionOutcome, type SelectionRequest} from '../core/selection.js';
 import {activeElement, focusElement} from './dom.js';
 import type {CalendarDataModel, CalendarModel} from './model.js';
 import type {OverlayStackController} from './overlays.js';

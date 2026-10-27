@@ -1,6 +1,6 @@
 import type {CalendarDateRange, CalendarInteractionPolicy} from '../reference.js';
 import {addCalendarDays} from './date.js';
-import {normalizePolicyResult, type PolicyDiagnostic} from './policy.js';
+import {normalizePolicyResult} from './policy.js';
 
 /**
  * Pure date and range selection (#11): normalization, the check pipeline, value equality and the draft transitions. A
@@ -9,6 +9,8 @@ import {normalizePolicyResult, type PolicyDiagnostic} from './policy.js';
 export type SelectionPolicy = Pick<CalendarInteractionPolicy, 'canSelectDate' | 'canSelectRange'> | undefined;
 /** `boundary`: the core block (`selectionBoundaryReason`), which no policy overrides. A policy `reason` of undefined is shown as `genericBlockedReason`. */
 export type SelectionBlock = Readonly<{kind: 'boundary'}> | Readonly<{kind: 'policy'; reason: string | undefined}>;
+/** A malformed policy result's development diagnostic; the controller's `warn` prints it once per path and text. */
+export type PolicyDiagnostic = Readonly<{path: string; reason: string}>;
 export type SelectionOutcome = Readonly<{block: SelectionBlock | null; diagnostic?: PolicyDiagnostic}>;
 /** A transient draft: range mode (the Select range command, or a blocked drop) or a held desktop drag. */
 export type SelectionDraft = Readonly<{mode: 'range' | 'drag'; anchor: string | null; endpoint: string | null}>;
@@ -30,7 +32,7 @@ export function selectionRange(anchor: string, endpoint: string): CalendarDateRa
 /** Ranges compare by `start` and `end`, never by identity; null is "nothing selected". */
 export const sameRange = (a: CalendarDateRange | null, b: CalendarDateRange | null) => a === b || !!a && !!b && a.start === b.start && a.end === b.end;
 
-function policyStep(result: Parameters<typeof normalizePolicyResult>[0], path: string): SelectionOutcome {
+function policyStep(result: unknown, path: string): SelectionOutcome {
     const outcome = normalizePolicyResult(result, path);
     if (outcome.allowed) return open;
     return {block: {kind: 'policy', reason: outcome.reason}, ...(outcome.diagnostic ? {diagnostic: outcome.diagnostic} : {})};
