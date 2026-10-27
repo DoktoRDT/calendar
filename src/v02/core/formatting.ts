@@ -1,5 +1,5 @@
 import type {CalendarDateRange, CalendarVisibleRange, CalendarVisibleRangeOptions} from '../reference.js';
-import {addCalendarDays, createDateAdapter, MAX_INSTANT, MIN_INSTANT, parseAnchorDate, parseDateRange, parseISODate, parseRFC3339, UTC_DAY_MS} from './date.js';
+import {addCalendarDays, createDateAdapter, MAX_INSTANT, MIN_INSTANT, parseAnchorDate, parseDateRange, parseISODate, parseRFC3339, UTC_DAY_MS, type WallTime} from './date.js';
 import {dateToDay, dayToDate} from './projection.js';
 import {localeDirection, resolveLocale, weekdays, type ResolvedLocale} from './locale.js';
 
@@ -104,6 +104,13 @@ export function createDateFormatting(resolved: ResolvedLocale, timeZone: string,
         const offset = ambiguous(instant);
         return fragment(formatter(`time-${seconds}-${offset}`, timeOptions(seconds, offset), timeZone).format(instant));
     };
+    // #9 Q1: the wall time a DST gap blocks, with seconds and milliseconds when they are non-zero (at Monrovia 00:44:29.999 is
+    // blocked and 00:44:30 is not) and never a zone. The synthetic UTC epoch of the wall fields is formatted in UTC.
+    const wallTime = (wall: WallTime) => {
+        const seconds = wall.second !== 0 || wall.millisecond !== 0, milliseconds = wall.millisecond !== 0;
+        const epoch = dateToDay(wall.date) * UTC_DAY_MS + ((wall.hour * 60 + wall.minute) * 60 + wall.second) * 1000 + wall.millisecond;
+        return fragment(formatter(`wall-${seconds}-${milliseconds}`, {...timeOptions(seconds, false), ...(milliseconds ? {fractionalSecondDigits: 3} : {})}).format(epoch));
+    };
     const range = (value: CalendarDateRange): readonly TextFragment[] => {
         const accepted = parseDateRange(value), last = addCalendarDays(accepted.end, -1);
         return last === accepted.start ? [date(accepted.start, 'short')] : [date(accepted.start, 'short'), fragment(' – '), date(last, 'short')];
@@ -124,7 +131,8 @@ export function createDateFormatting(resolved: ResolvedLocale, timeZone: string,
         const sameDate = end !== start && dates.projectInstant(start, timeZone).date === dates.projectInstant(end, timeZone).date;
         return end === start ? [dateTime(start)] : [dateTime(start), fragment(' – '), sameDate ? time(end) : dateTime(end)];
     };
-    return {date, time, range, dateTime, timedRange};
+    // `dateText`: already formatted date-locale text, such as the wall time of moveDstGapReason, as a date fragment.
+    return {date, time, wallTime, dateText: fragment, range, dateTime, timedRange};
 }
 
 /**

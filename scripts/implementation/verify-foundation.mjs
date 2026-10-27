@@ -28,8 +28,8 @@ const commands = [
     }],
     ['lint', 'npm', ['run', 'lint']],
     ['tests', 'npm', ['test', '--', '--reporter=dot']],
-    ...['UTC', 'America/Los_Angeles', 'Asia/Tokyo', 'Africa/Monrovia'].map((TZ, i) => [
-        `date-host-timezone-${i + 1}`, 'npm', ['test', '--', 'src/v02/core/__tests__/date.test.ts', 'src/v02/core/__tests__/projection.test.ts', 'src/v02/core/__tests__/layout.test.ts', 'src/v02/core/__tests__/locale.test.ts', 'src/v02/core/__tests__/messages.test.tsx', 'src/v02/core/__tests__/controller.test.ts', 'src/v02/core/__tests__/today.test.ts', 'src/v02/core/__tests__/month.test.ts', 'src/v02/core/__tests__/responsive.test.ts', 'src/v02/core/__tests__/placement.test.ts', '--reporter=dot'], {TZ, LANG: 'de_DE.UTF-8', LC_ALL: 'de_DE.UTF-8'},
+    ...['UTC', 'America/Los_Angeles', 'Asia/Tokyo', 'Africa/Monrovia', 'Pacific/Apia'].map((TZ, i) => [
+        `date-host-timezone-${i + 1}`, 'npm', ['test', '--', 'src/v02/core/__tests__/date.test.ts', 'src/v02/core/__tests__/projection.test.ts', 'src/v02/core/__tests__/layout.test.ts', 'src/v02/core/__tests__/locale.test.ts', 'src/v02/core/__tests__/messages.test.tsx', 'src/v02/core/__tests__/controller.test.ts', 'src/v02/core/__tests__/today.test.ts', 'src/v02/core/__tests__/month.test.ts', 'src/v02/core/__tests__/responsive.test.ts', 'src/v02/core/__tests__/placement.test.ts', 'src/v02/core/__tests__/move.test.ts', '--reporter=dot'], {TZ, LANG: 'de_DE.UTF-8', LC_ALL: 'de_DE.UTF-8'},
     ]),
     ['storybook-build', 'npm', ['run', 'build-storybook', '--', '--disable-telemetry']],
     // Review 2026-10-09-2 and process change 2026-10-22: npm cache path, filtered acceptance outcome, stale port, CI artifact upload,
@@ -45,6 +45,7 @@ const sourcePaths = [
     'docs/api/calendar.api.md', 'scripts/docs/api-extractor.json', 'scripts/docs/api-report.mjs', 'scripts/docs/check-docs.mjs', 'scripts/docs/check-docs-selftest.mjs',
     'examples/migration/convert.ts', 'examples/migration/tsconfig.json', 'tests/docs/migration.test.tsx', '.storybook/main.ts', '.storybook/preview.ts', '.github/workflows/pages.yml',
     'package.json', 'package-lock.json', 'src/v02/core/date.ts', 'src/v02/core/__tests__/date.test.ts',
+    'src/v02/core/move.ts', 'src/v02/core/__tests__/move.test.ts', 'src/v02/core/policy.ts', 'src/v02/core/__tests__/policy.test.ts',
     'src/v02/core/validation.ts', 'src/v02/core/__tests__/validation.test.ts',
     'src/v02/core/localeTag.ts', 'src/v02/core/__tests__/localeTag.test.ts',
     'src/v02/core/locale.ts', 'src/v02/core/formatting.ts', 'src/v02/core/catalogs.ts', 'src/v02/core/messages.ts',
