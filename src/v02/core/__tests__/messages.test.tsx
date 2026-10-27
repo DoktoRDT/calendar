@@ -37,6 +37,10 @@ describe('complete language catalogs', () => {
     it.each([[0, '0 событий'], [1, '1 событие'], [2, '2 события'], [5, '5 событий'], [11, '11 событий'], [21, '21 событие'], [22, '22 события']])('uses Russian plurals for %i', (n, expected) => {
         expect(raw(messages().message('itemCountLabel', '2026-09-03', n as number))).toContain(expected);
     });
+    it('labels a date cell inside a selection draft in both catalogs (#14)', () => {
+        expect(messages('en-US').message('selectionDraftStateLabel')).toMatchObject({lang: 'en-US', text: 'In selection', diagnostics: []});
+        expect(messages('ru-RU').message('selectionDraftStateLabel')).toMatchObject({lang: 'ru-RU', text: 'В выделении', diagnostics: []});
+    });
     it('uses singular/plural English counts and includes target state/offset/reason', () => {
         const m = messages('en-US');
         expect(raw(m.message('itemCountLabel', '2026-09-03', 1))).toContain('1 event');
@@ -61,6 +65,8 @@ describe('partial overrides, fragments and raw title snapshots', () => {
         const m = messages('ar-SA', {messagesLocale: 'fr-FR', messages: {todayLabel: "Aujourd’hui"}});
         expect(m.message('todayLabel')).toMatchObject({lang: 'fr-FR', text: "Aujourd’hui"});
         expect(m.message('calendarLabel')).toMatchObject({lang: 'en-US', text: 'Calendar'});
+        const draft = messages('ar-SA', {messagesLocale: 'fr-FR', messages: {selectionDraftStateLabel: 'Dans la sélection'}}).message('selectionDraftStateLabel');
+        expect(draft).toMatchObject({lang: 'fr-FR', text: 'Dans la sélection', diagnostics: []});
     });
     it.each(['', '  ', null, 7, () => 'Wrong shape'])('falls back on invalid static override %j', todayLabel => {
         const m = messages('ru-RU', {messages: {todayLabel} as never});
