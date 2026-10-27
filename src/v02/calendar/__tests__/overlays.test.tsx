@@ -1,7 +1,7 @@
 import {Children, StrictMode, cloneElement, isValidElement, type ReactNode} from 'react';
 import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import type {CalendarProps} from '../../reference.js';
 import {CalendarMonth} from '../CalendarMonth.js';
 import {ActionsPresentationContext, ItemActionsContent} from '../overlays.js';
@@ -33,7 +33,7 @@ const focused = () => ({item: document.activeElement?.closest<HTMLElement>('[dat
     presentation: document.activeElement?.closest<HTMLElement>('[data-presentation]')?.dataset.presentation});
 async function open(user: ReturnType<typeof userEvent.setup>, date = '2026-03-04') { act(() => cell(date).focus()); await user.keyboard('{Enter}'); }
 async function openMenu(user: ReturnType<typeof userEvent.setup>, item = 'b') { act(() => trigger(item).focus()); await user.keyboard('{Enter}'); }
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { warn.mockRestore(); });
 

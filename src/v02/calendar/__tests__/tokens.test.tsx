@@ -1,7 +1,7 @@
 import {createRoot, hydrateRoot} from 'react-dom/client';
 import {renderToString} from 'react-dom/server';
 import {act} from '@testing-library/react';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, type CalendarProps} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
 
@@ -12,7 +12,7 @@ const escapedUrl = String.raw`u\72l(a'b);position:fixed;inset:0;background:url(/
 const props = (): CalendarProps => ({items: [], timeZone: 'UTC', locale: 'en-US', today: '2026-09-03', anchorDate: '2026-09-01', onNavigate() {}, layout: 'desktop',
     tokens: {color: {surface: injected, accent: '#0b57d0', muted: escapedUrl}, components: {itemText: 'red !important', itemBackground: '"open'}}, style: {'--nelmad-calendar-color-text': 'purple'}});
 const rootStyle = (container: Element) => container.querySelector('.nc-calendar')!.getAttribute('style');
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
 

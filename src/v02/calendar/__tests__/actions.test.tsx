@@ -1,7 +1,7 @@
 import {StrictMode} from 'react';
 import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, type CalendarItem, type CalendarItemAction, type CalendarProps} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
 
@@ -21,7 +21,7 @@ const trigger = (title: string) => screen.getByRole('button', {name: actionsFor(
 const focused = () => ({item: document.activeElement?.closest<HTMLElement>('[data-item-id]')?.dataset.itemId, control: (document.activeElement as HTMLElement | null)?.dataset.agendaControl,
     date: (document.activeElement as HTMLElement | null)?.dataset.date});
 async function open(user: ReturnType<typeof userEvent.setup>, date = '2026-03-04') { act(() => cell(date).focus()); await user.keyboard('{Enter}'); }
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { warn.mockRestore(); });
 const warnings = () => warn.mock.calls.map(([message]) => String(message));

@@ -1,7 +1,7 @@
 import {useLayoutEffect, type ComponentProps} from 'react';
 import {act, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import type {CalendarProps} from '../../reference.js';
 import type * as Mirror from '../../primitives/mirror.js';
 import type * as Sheet from '../../primitives/ModalSheet.js';
@@ -34,7 +34,7 @@ vi.mock('../../primitives/mirror.js', async importOriginal => {
 const items = [{id: 'b', title: 'Beta', data: {}, interval: {kind: 'timed' as const, start: '2026-03-04T10:00:00Z'}}];
 const input = (): CalendarProps => ({items, anchorDate: '2026-03-01', today: '2026-03-04', timeZone: 'UTC', locale: 'en-US', layout: 'desktop', onNavigate() {}, onItemPress() {}});
 const cell = () => screen.getAllByRole('gridcell', {hidden: true}).find(node => node.dataset.date === '2026-03-04')!;
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); race.key = null; race.repeat = false; race.visibility = []; race.pending = []; });
 afterEach(() => { warn.mockRestore(); });
 

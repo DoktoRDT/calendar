@@ -1,7 +1,7 @@
 import {StrictMode} from 'react';
 import {act, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, neutralTheme, type CalendarAgendaItemSlotContext, type CalendarItem, type CalendarMonthItemSlotContext, type CalendarProps,
     type CalendarSource} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
@@ -23,7 +23,7 @@ const key = (context: CalendarMonthItemSlotContext<Data, SourceData>) => `${cont
 async function open(user: ReturnType<typeof userEvent.setup>, date = '2026-03-04') { act(() => cell(date).focus()); await user.keyboard('{Enter}'); }
 const sizes: Record<string, Record<string, string>> = {'nc-month-week': {height: '120px', width: '700px'}, 'nc-day-header': {height: '32px'},
     'nc-month-item-probe': {height: '24px', marginBottom: '4px'}, 'nc-month-overflow-probe': {height: '24px'}};
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => {
     resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const original = window.getComputedStyle.bind(window);
