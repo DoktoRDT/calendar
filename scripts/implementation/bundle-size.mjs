@@ -10,15 +10,17 @@ import {createRecorder, hash, packCandidate, prepareConsumer, root, tarballArgum
 // gzipped alone at level 9; the deltas are compared with bundle-fixture/budget.json. Report-only until the freeze:
 // `node scripts/implementation/bundle-size.mjs [--tarball=<tgz>] [--output=<dir>] [--refresh-locks]`.
 export const fixture = join(root, 'scripts/implementation/bundle-fixture');
-const gzipLevel = 9;
+// The gated target (decision Q2a); the fixture config sets it, and a change of either is a dated protocol change.
+const gatedTarget = 'es2020', gzipLevel = 9;
 const gzip = bytes => gzipSync(bytes, {level: gzipLevel}).length;
 const size = bytes => ({bytes, kib: Math.round(bytes / 1024 * 100) / 100});
 const kib = bytes => `${(bytes / 1024).toFixed(1)} KiB`;
 const posix = path => path.split('\\').join('/');
 
 /**
- * The thresholds and mode of bundle-fixture/budget.json. A missing field, a wrong type or a frozen budget without its dated
- * decision (decision Q6c: an https `decision` link and an ISO `decidedOn`) is a measurement error, never a default.
+ * The thresholds and mode of bundle-fixture/budget.json. A missing field, a wrong type, enforcement without the freeze (decision
+ * Q1) or a frozen budget without its dated decision (decision Q6c: an https `decision` link and an ISO `decidedOn`) is a
+ * measurement error, never a default.
  */
 export function readBudget(text) {
     let budget;
@@ -28,6 +30,7 @@ export function readBudget(text) {
     for (const key of ['jsGzipBytes', 'cssGzipBytes']) if (!Number.isSafeInteger(budget[key]) || budget[key] <= 0) fail(`${key} must be a positive integer of bytes`);
     if (!['candidate', 'frozen'].includes(budget.status)) fail('status must be "candidate" or "frozen"');
     if (typeof budget.enforce !== 'boolean') fail('enforce must be a boolean');
+    if (budget.enforce !== (budget.status === 'frozen')) fail('enforce is true exactly when status is "frozen"');
     if (budget.status === 'frozen') {
         if (typeof budget.decision !== 'string' || !URL.canParse(budget.decision) || new URL(budget.decision).protocol !== 'https:') fail('a frozen budget needs the https link of its decision');
         const day = typeof budget.decidedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(budget.decidedOn) ? new Date(`${budget.decidedOn}T00:00:00Z`) : null;
@@ -37,10 +40,11 @@ export function readBudget(text) {
 }
 
 /**
- * The module-graph assertions of the protocol. `graph` is every module id Rollup loaded, `included` the ids rendered into
- * the chunks, `chunks` the measured files with their text. Any failure is a measurement error in both modes.
+ * The assertions of the protocol on the two gated builds. `resolved` is the resolved Vite build config, `graph` every module
+ * id Rollup loaded, `included` the ids rendered into the chunks, `chunks` the measured files with their text. Any failure is
+ * a measurement error in both modes.
  */
-export function graphAssertions({baseline, calendar}) {
+export function buildAssertions({baseline, calendar}) {
     const ids = list => list.map(posix);
     const calendarIncluded = ids(calendar.included), calendarGraph = ids(calendar.graph), baselineGraph = ids(baseline.graph);
     const code = calendar.chunks.filter(chunk => chunk.type === 'js').map(chunk => chunk.text).join('\n');
@@ -50,6 +54,8 @@ export function graphAssertions({baseline, calendar}) {
     const leaked = baselineGraph.filter(id => id.includes('/node_modules/@nelmad/calendar/'));
     const count = (build, type) => build.chunks.filter(chunk => chunk.type === type).length;
     return [
+        check(`both builds use target ${gatedTarget}`, [baseline, calendar].every(build => build.resolved?.target === gatedTarget),
+            `baseline ${JSON.stringify(baseline.resolved?.target)}, calendar ${JSON.stringify(calendar.resolved?.target)}`),
         check('calendar build has JS and CSS chunks', count(calendar, 'js') > 0 && count(calendar, 'css') > 0, `${count(calendar, 'js')} JS, ${count(calendar, 'css')} CSS`),
         check('baseline build has a JS chunk', count(baseline, 'js') > 0, 'no JS chunk'),
         ...['v02/calendar/CalendarMonth.js', 'v02/calendar/DayAgendaBody.js', 'v02/calendar/SourceSelector.js', 'v02/calendar/overlays.js', 'v02/themes/classic.js', 'v02/themes/neutral.js']
@@ -163,7 +169,7 @@ function print(report) {
     for (const entry of diagnostics.breakdown.packages) console.log(`  ${String(entry.gzip).padStart(7)} B  ${entry.group}`);
     console.log('\nLargest own modules (diagnostic, each minified and gzipped alone):');
     for (const entry of diagnostics.breakdown.ownModules.slice(0, 10)) console.log(`  ${String(entry.gzip).padStart(7)} B  ${entry.module}`);
-    console.log('\nModule-graph assertions:');
+    console.log('\nBuild assertions:');
     for (const assertion of assertions) console.log(`  ${assertion.pass ? 'PASS' : 'FAIL'}: ${assertion.name}${assertion.pass ? '' : ` (${assertion.detail})`}`);
 }
 
@@ -177,6 +183,9 @@ async function main() {
     const report = {startedAt: new Date().toISOString(), protocol: 'https://github.com/Nelmad/calendar/issues/12', outcome: 'running', temporary, checks: []};
     const {save, record, run} = createRecorder(output, report);
     try {
+        // An inherited NODE_ENV changes the measurement: Vite keeps it (development measures a development build), and
+        // `npm ci` under production omits devDependencies, the fixture's Vite among them.
+        if (process.env.NODE_ENV !== undefined) throw new Error(`NODE_ENV=${process.env.NODE_ENV}: the measurement needs a clean install and Vite's production default; unset NODE_ENV`);
         report.budget = readBudget(readFileSync(join(fixture, 'budget.json'), 'utf8'));
         report.git = {sha: run('git-sha', 'git', ['rev-parse', 'HEAD']).trim(), dirty: run('git-status', 'git', ['status', '--porcelain']).trim() !== ''};
         const {pack, details} = packCandidate({run, record, temporary, output, tarball: tarballArgument()});
@@ -190,7 +199,7 @@ async function main() {
         const baseline = await measure(vite, directory, 'baseline'), calendar = await measure(vite, directory, 'calendar');
         const {target, minify, cssMinify, sourcemap, modulePreload, rollupOptions} = calendar.resolved;
         report.build = {target, minify, cssMinify, sourcemap, modulePreload, external: String(rollupOptions.external)};
-        report.assertions = graphAssertions({baseline, calendar});
+        report.assertions = buildAssertions({baseline, calendar});
         const delta = {js: calendar.js - baseline.js, css: calendar.css - baseline.css};
         const result = verdict({budget: report.budget, delta, assertions: report.assertions});
         report.sizes = {

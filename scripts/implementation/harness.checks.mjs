@@ -69,8 +69,8 @@ test('the packed-consumers job sets up one exact Node version', () => {
 });
 
 // Issue #12, decision Q1: the bundle-size verdict with synthetic sizes and module graphs.
-test('the bundle-size verdict reports a candidate excess, fails an enforced one and fails a graph assertion in both modes', async () => {
-    const {graphAssertions, verdict} = await import('./bundle-size.mjs');
+test('the bundle-size verdict reports a candidate excess, fails an enforced one and fails a build assertion in both modes', async () => {
+    const {buildAssertions, verdict} = await import('./bundle-size.mjs');
     const candidate = {jsGzipBytes: 81920, cssGzipBytes: 10240, status: 'candidate', enforce: false};
     const frozen = {...candidate, status: 'frozen', enforce: true, decision: 'https://github.com/Nelmad/calendar/issues/13#issuecomment-1', decidedOn: '2026-11-02'};
     const delta = {js: 96377, css: 4282}, passing = [{name: 'Day.js is absent from the calendar graph', pass: true}];
@@ -86,11 +86,13 @@ test('the bundle-size verdict reports a candidate excess, fails an enforced one 
     // (c) Day.js in the graph: exit 1 in both modes, within budget too.
     const required = ['calendar/CalendarMonth', 'calendar/DayAgendaBody', 'calendar/SourceSelector', 'calendar/overlays', 'themes/classic', 'themes/neutral']
         .map(path => `/t/node_modules/@nelmad/calendar/dist/v02/${path}.js`);
-    const build = ({graph = required, included = graph, text = 'export{};', css = true} = {}) => ({graph, included, chunks: [{type: 'js', text}, ...(css ? [{type: 'css', text: ''}] : [])]});
+    const build = ({graph = required, included = graph, text = 'export{};', js = true, css = true, target = 'es2020'} = {}) => ({resolved: {target}, graph, included,
+        chunks: [...(js ? [{type: 'js', text}] : []), ...(css ? [{type: 'css', text: ''}] : [])]});
     const baseline = build({graph: ['/t/src/baseline.jsx'], css: false});
-    const failures = calendar => graphAssertions({baseline, calendar}).filter(assertion => !assertion.pass).map(assertion => assertion.name);
+    const failed = builds => buildAssertions(builds).filter(assertion => !assertion.pass).map(assertion => assertion.name);
+    const failures = calendar => failed({baseline, calendar});
     assert.deepEqual(failures(build()), []);
-    const dayjs = graphAssertions({baseline, calendar: build({graph: [...required, '/t/node_modules/dayjs/dayjs.min.js'], included: required})});
+    const dayjs = buildAssertions({baseline, calendar: build({graph: [...required, '/t/node_modules/dayjs/dayjs.min.js'], included: required})});
     assert.deepEqual(dayjs.filter(assertion => !assertion.pass).map(assertion => assertion.name), ['Day.js is absent from the calendar graph']);
     for (const budget of [candidate, frozen]) assert.equal(verdict({budget, delta: {js: 1, css: 1}, assertions: dayjs}).exitCode, 1);
     // Every other assertion catches its own fault. React Aria's barrels load the drag and drop modules into the graph and
@@ -100,22 +102,29 @@ test('the bundle-size verdict reports a candidate excess, fails an enforced one 
     assert.deepEqual(failures(build({included: [...required, dnd]})), ['no React Aria drag and drop module in the calendar chunks']);
     assert.deepEqual(failures(build({text: 'console.warn("[@nelmad/calendar] x")'})), ['no calendar chunk contains the development-warning prefix']);
     assert.deepEqual(failures(build({text: 'import "dayjs";'})), ['Day.js is absent from the calendar output']);
-    assert.deepEqual(failures(build({graph: required.slice(0, -1)})), ['calendar build contains dist/v02/themes/neutral.js']);
+    for (const path of required) {
+        assert.deepEqual(failures(build({included: required.filter(id => id !== path)})), [`calendar build contains ${path.slice(path.indexOf('dist/'))}`]);
+    }
     assert.deepEqual(failures(build({css: false})), ['calendar build has JS and CSS chunks']);
-    assert.deepEqual(graphAssertions({baseline: build({graph: required.slice(0, 1), css: false}), calendar: build()}).filter(assertion => !assertion.pass).map(assertion => assertion.name),
-        ['baseline build has no @nelmad/calendar module']);
+    assert.deepEqual(failures(build({js: false})), ['calendar build has JS and CSS chunks']);
+    assert.deepEqual(failed({baseline: build({graph: [], js: false, css: false}), calendar: build()}), ['baseline build has a JS chunk']);
+    assert.deepEqual(failed({baseline: build({graph: required.slice(0, 1), css: false}), calendar: build()}), ['baseline build has no @nelmad/calendar module']);
+    // Decision Q2a: the gated number is measured at es2020 only, in both builds.
+    assert.deepEqual(failures(build({target: ['es2020', 'edge88', 'firefox78', 'chrome87', 'safari14']})), ['both builds use target es2020']);
+    assert.deepEqual(failed({baseline: build({graph: [], css: false, target: 'esnext'}), calendar: build()}), ['both builds use target es2020']);
 });
 
 // Issue #12, decisions Q1 and Q6c: the thresholds come only from budget.json, and a frozen budget names its dated decision.
 test('budget.json is read strictly: a malformed budget or a frozen one without its decision is a measurement error', async () => {
     const {fixture, readBudget} = await import('./bundle-size.mjs');
-    const shipped = readBudget(readFileSync(join(fixture, 'budget.json'), 'utf8'));
-    assert.deepEqual(Object.keys(shipped).slice(0, 4), ['jsGzipBytes', 'cssGzipBytes', 'status', 'enforce']);
     const candidate = {jsGzipBytes: 81920, cssGzipBytes: 10240, status: 'candidate', enforce: false};
+    // The candidate ceilings until the freeze PR (decision Q6c) changes this file and this line together.
+    assert.deepEqual(readBudget(readFileSync(join(fixture, 'budget.json'), 'utf8')), candidate);
     const frozen = {...candidate, status: 'frozen', enforce: true, decision: 'https://github.com/Nelmad/calendar/issues/13#issuecomment-1', decidedOn: '2026-11-02'};
     assert.deepEqual(readBudget(JSON.stringify(frozen)), frozen);
     for (const [text, reason] of [['{', /not JSON/], ['[]', /object/], [{...candidate, jsGzipBytes: undefined}, /jsGzipBytes/], [{...candidate, cssGzipBytes: '10240'}, /cssGzipBytes/],
         [{...candidate, jsGzipBytes: 0}, /jsGzipBytes/], [{...candidate, status: 'draft'}, /status/], [{...candidate, enforce: 'false'}, /enforce/],
+        [{...candidate, enforce: true}, /enforce is true exactly when status is "frozen"/], [{...frozen, enforce: false}, /enforce is true exactly when status is "frozen"/],
         [{...frozen, decision: undefined}, /decision/], [{...frozen, decision: 'http://example.com/decision'}, /decision/],
         [{...frozen, decidedOn: undefined}, /decidedOn/], [{...frozen, decidedOn: '2026-13-01'}, /decidedOn/], [{...frozen, decidedOn: '2026-11-02T00:00:00Z'}, /decidedOn/]]) {
         assert.throws(() => readBudget(typeof text === 'string' ? text : JSON.stringify(text)), reason, JSON.stringify(text));
