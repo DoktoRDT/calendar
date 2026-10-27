@@ -3,7 +3,7 @@ import {act, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {hydrateRoot} from 'react-dom/client';
 import {renderToString} from 'react-dom/server';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, type CalendarItem, type CalendarProps, type CalendarSource} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
 import {createOverlayStack} from '../overlays.js';
@@ -24,7 +24,7 @@ const isolated = (text: string) => `⁨${text}⁩`;
 const hide = (title: string) => `Hide calendar ${isolated(title)}`, show = (title: string) => `Show calendar ${isolated(title)}`;
 /** The cell's accessible name and description: the full count of items that passed the filter (§12.1). */
 const count = () => ['aria-labelledby', 'aria-describedby'].flatMap(name => cell().getAttribute(name)?.split(' ') ?? []).map(id => document.getElementById(id)?.textContent).join(' ');
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { warn.mockRestore(); });
 const warnings = () => warn.mock.calls.map(([message]) => String(message));
