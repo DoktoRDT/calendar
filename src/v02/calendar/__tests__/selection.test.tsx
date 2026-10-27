@@ -3,7 +3,7 @@ import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {hydrateRoot} from 'react-dom/client';
 import {renderToString} from 'react-dom/server';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import type {CalendarDateRange, CalendarDayState, CalendarInteractionPolicy, CalendarProps, PolicyResult} from '../../reference.js';
 import {CalendarMonth} from '../CalendarMonth.js';
 
@@ -32,7 +32,7 @@ function liveLog() {
     observer.observe(document.body, {childList: true, subtree: true});
     return {read: () => { record(observer.takeRecords()); return log.splice(0); }, stop: () => observer.disconnect()};
 }
-let live: ReturnType<typeof liveLog>, warn: ReturnType<typeof vi.spyOn>;
+let live: ReturnType<typeof liveLog>, warn: MockInstance<typeof console.warn>;
 beforeEach(() => { live = liveLog(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { live.stop(); vi.restoreAllMocks(); });
 const warnings = () => warn.mock.calls.map(([message]) => String(message));
