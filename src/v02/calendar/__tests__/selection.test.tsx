@@ -370,20 +370,28 @@ describe('what cancels a draft', () => {
         await user.keyboard(' ');
         expect(changes(props)).toEqual([range('2026-09-10', '2026-09-12')]);
     });
-    it('focus leaving the grid and the Calendar keeps the draft; Tab back in moves the endpoint', async () => {
+    it('focus leaving the grid and the Calendar keeps the draft; Shift+Tab back into the grid moves the endpoint (decision Q14)', async () => {
         const user = userEvent.setup(), props = selecting();
         render(<StrictMode><CalendarMonth {...props}/><button>After</button></StrictMode>);
         await user.click(button('Select range'));
-        await keys(user, '2026-09-10', ' {ArrowRight}');
-        await user.click(button('After'));
-        expect(draft()).toBe(2);
-        await user.click(cell('2026-09-14'));
+        await keys(user, '2026-09-10', ' {ArrowRight}{ArrowRight}');
+        await user.tab();
+        expect(button('After')).toHaveFocus(); expect(draft()).toBe(3);
+        // The roving cell is the last focused date, 12 September; returning to it keeps the endpoint there.
+        live.read();
+        await user.tab({shift: true});
+        expect(cell('2026-09-12')).toHaveFocus(); expect(draft()).toBe(3); expect(live.read()).toEqual([]);
+        // Focus that lands on another date cell from outside moves the endpoint and speaks the new target once.
+        await user.tab();
+        act(() => cell('2026-09-14').focus());
+        expect(draft()).toBe(5); expect(live.read()).toEqual(['polite: Range: Sep 10, 2026 – Sep 14, 2026. Available']);
+        await user.keyboard(' ');
         expect(changes(props)).toEqual([range('2026-09-10', '2026-09-15')]);
     });
     it('an external month change cancels silently; a matching toolbar acceptance keeps the draft', async () => {
-        const props = selecting(), {user, view} = await open(props);
+        const onNavigate = vi.fn(), props = selecting({onNavigate}), {user, view} = await open(props);
         await user.click(button('Next month'));
-        expect(props.onNavigate).toBeDefined();
+        expect(onNavigate).toHaveBeenLastCalledWith('2026-10-01');
         view.rerender(tree({...props, anchorDate: '2026-10-01'} as CalendarProps));
         expect(document.querySelectorAll('.nc-selection-line')).toHaveLength(1);
         view.rerender(tree({...props, anchorDate: '2026-12-01'} as CalendarProps));
@@ -752,5 +760,54 @@ describe('SSR and hydration', () => {
         try {
             expect(warnings().filter(message => message.includes('interactionPolicy.canSelectDate'))).toHaveLength(1);
         } finally { await act(async () => root!.unmount()); container.remove(); }
+    });
+});
+
+describe('the mode line after a blocked single-date Space (decision Q3)', () => {
+    it('shows the reason; the text clears on another date; the line goes when focus leaves the grid or a command runs', async () => {
+        const user = userEvent.setup(), props = selecting({interactionPolicy: blockedOn('2026-09-10')});
+        render(<StrictMode><CalendarMonth {...props}/><button>After</button></StrictMode>);
+        const line = () => document.querySelector('.nc-selection-line');
+        await keys(user, '2026-09-10', ' ');
+        expect(line()).toHaveTextContent('Closed on 2026-09-10'); expect(line()).not.toHaveAttribute('role');
+        // The line sits after the toolbar and before the grid, in Tab and reading order.
+        expect(line()!.compareDocumentPosition(screen.getByRole('grid')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(document.querySelector('.nc-calendar-toolbar')!.compareDocumentPosition(line()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        await user.keyboard('{ArrowRight}');
+        expect(line()).not.toBeNull(); expect(line()).toHaveTextContent(/^$/);
+        await user.keyboard('{ArrowLeft} ');
+        expect(line()).toHaveTextContent('Closed on 2026-09-10');
+        await user.click(button('After'));
+        expect(line()).toBeNull();
+        await keys(user, '2026-09-10', ' ');
+        expect(line()).not.toBeNull();
+        await user.click(button('Select range'));
+        expect(line()).toHaveAttribute('data-mode', 'range'); expect(line()).not.toHaveTextContent('Closed');
+        expect(changes(props)).toEqual([]);
+    });
+});
+
+describe('the shell during a refresh with selection enabled', () => {
+    it.each([false, true])('renders exactly one refresh progress (range mode %s)', async rangeMode => {
+        const user = userEvent.setup(), props = selecting({dataState: {status: 'loading', phase: 'refresh'}});
+        render(tree(props));
+        if (rangeMode) await user.click(button('Select range'));
+        expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+        expect(document.querySelectorAll('.nc-calendar-status')).toHaveLength(1);
+        expect(screen.getByRole('progressbar').closest('.nc-calendar-view')).not.toBeNull();
+        expect(document.querySelectorAll('.nc-selection-line')).toHaveLength(rangeMode ? 1 : 0);
+    });
+});
+
+describe('several transitions in one commit are spoken together', () => {
+    it('an accepted older request and a target that a new policy blocks: both, in one payload (decision Q8)', async () => {
+        const user = userEvent.setup(), props = selecting();
+        const view = render(tree(props));
+        await keys(user, '2026-09-03', ' ');
+        await user.click(button('Select range'));
+        await keys(user, '2026-09-10', ' {ArrowRight}');
+        live.read();
+        view.rerender(tree({...props, selection: range('2026-09-03', '2026-09-04'), interactionPolicy: blockedOn('2026-09-11')} as CalendarProps));
+        expect(live.read()).toEqual(['polite: Selected range: Sep 3, 2026 Range: Sep 10, 2026 – Sep 11, 2026. Unavailable']);
     });
 });

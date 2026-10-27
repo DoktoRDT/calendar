@@ -28,7 +28,8 @@ export function CalendarMonth<I, S>(props: CalendarProps<I, S>) {
 }
 /** The public facade passes its prerelease surface; validation then enforces its layouts. */
 export function CalendarMonthRoot<I, S>({input, surface}: {input: CalendarProps<I, S>; surface?: CalendarSurface}) {
-    // A viewer keeps exactly the alpha.2 element structure (and so the server ids); the selection group precedes the source selector.
+    // A viewer keeps exactly the alpha.2 element structure (and so the server ids); the selection group precedes the source
+    // selector, which therefore remounts (closing an open menu) when the selection pair is added or removed.
     return <CalendarShell input={input} surface={surface} renderView={(controller, headingId) => <MonthSurface controller={controller} headingId={headingId}/>}
         renderToolbarControls={controller => controller.selection.enabled
             ? <><SelectionToolbar controller={controller}/><SourceSelector controller={controller}/></> : <SourceSelector controller={controller}/>}

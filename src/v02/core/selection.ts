@@ -45,7 +45,8 @@ export function checkDate(date: string, policy: SelectionPolicy): SelectionOutco
  * chronological order (never the exclusive end), then `canSelectRange`, also for a single day. The first block wins.
  */
 export function checkRange(range: CalendarDateRange, policy: SelectionPolicy): SelectionOutcome {
-    for (let date = range.start; date < range.end; date = addCalendarDays(date, 1)) {
+    // A representable range never includes 9999-12-31, so without canSelectDate no date can block.
+    if (policy?.canSelectDate) for (let date = range.start; date < range.end; date = addCalendarDays(date, 1)) {
         const outcome = checkDate(date, policy);
         if (outcome.block) return outcome;
     }

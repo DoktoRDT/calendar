@@ -108,6 +108,21 @@ try {
             } finally { await context.close(); }
         });
     }
+    await check('a drag back onto its anchor selects that one day and its click views nothing; no text is selected', async () => {
+        const {page, context} = await setup({accept: false, items: [{id: 'a', title: 'Alpha', data: {}, interval: {kind: 'allDay', start: '2026-09-03', end: '2026-09-04'}}]});
+        try {
+            const start = await point(page, '2026-09-03'), away = await point(page, '2026-09-06');
+            await page.mouse.move(start.x, start.y); await page.mouse.down();
+            await page.mouse.move(away.x, away.y, {steps: 8}); await page.mouse.move(start.x, start.y, {steps: 8}); await page.mouse.up(); await settle(page);
+            assert.deepEqual(await events(page), [range('2026-09-03', '2026-09-04')]);
+            assert.equal(await page.locator('.nc-day-list').count(), 0);
+            assert.equal(await page.evaluate(() => getSelection().toString()), '');
+            assert.equal(await page.locator('[role=grid]').evaluate(node => node.style.userSelect), '');
+            // The next ordinary click is not swallowed.
+            await page.mouse.click(start.x, start.y); await settle(page);
+            assert.equal(await page.locator('.nc-day-list[data-date="2026-09-03"]').count(), 1);
+        } finally { await context.close(); }
+    });
     await check('a press that never becomes a drag is an ordinary click that views the day', async () => {
         const {page, context} = await setup();
         try {

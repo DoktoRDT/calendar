@@ -15,7 +15,9 @@ export const dragThreshold = 4;
 
 type Data = CalendarDataModel<unknown, unknown>;
 type Target = Readonly<{range: CalendarDateRange; allowed: boolean}>;
-type Queue = {polite?: {kind: 'start' | 'target' | 'other'; texts: readonly LocalizedText[]}; urgent?: readonly LocalizedText[]};
+type Transition = {kind: 'start' | 'target' | 'other'; texts: readonly LocalizedText[]};
+/** The speech of one commit: its polite transitions in order (written as one payload) and the latest urgent block. */
+type Queue = {polite: Transition[]; urgent?: readonly LocalizedText[]};
 type Press = {pointer: number; date: string; x: number; y: number; recognized: boolean; done: AbortController};
 export type SelectionOptions = {
     overlays: OverlayStackController; warn: (path: string, reason: string) => void;
@@ -53,7 +55,7 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
     const [pressBlock, setPressBlock] = useState<{model: unknown; block: SelectionBlock} | null>(null);
     const [, requestFlush] = useReducer((value: number) => value + 1, 0);
     const [diagnostics] = useState(createDiagnostics);
-    const draftRef = useRef<SelectionDraft | null>(null), queue = useRef<Queue>({}), pending = useRef<SelectionRequest | null>(null);
+    const draftRef = useRef<SelectionDraft | null>(null), queue = useRef<Queue>({polite: []}), pending = useRef<SelectionRequest | null>(null);
     const previous = useRef<CalendarDateRange | null | undefined>(undefined), target = useRef<Target | null>(null);
     const press = useRef<Press | null>(null), quiet = useRef<string | null>(null), committed = useRef<CalendarModel<I, S>>(model);
     useClientLayoutEffect(() => { committed.current = model; });
@@ -70,13 +72,16 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
         : space || createBlock ? {kind: 'idle' as const, reason: spaceBlock, create: createBlock} : null;
 
     const update = (next: SelectionDraft | null) => { draftRef.current = next; setStored(next); };
-    const enqueue = (polite?: NonNullable<Queue['polite']>, urgent?: readonly LocalizedText[]) => {
-        const queued = queue.current.polite;
-        // A start payload is never replaced by a later target transition of the same commit: the newer target follows it.
-        if (polite) queue.current.polite = queued?.kind === 'start' && polite.kind === 'target' ? {kind: 'start', texts: [queued.texts[0], ...polite.texts]} : polite;
+    const enqueue = (polite?: Transition, urgent?: readonly LocalizedText[]) => {
+        const queued = queue.current.polite, last = queued[queued.length - 1] as Transition | undefined;
+        // Several transitions of one commit are spoken together. A newer target replaces only the older target, also the
+        // target part of a start payload, which is never replaced itself.
+        if (polite?.kind === 'target' && last?.kind === 'target') queued[queued.length - 1] = polite;
+        else if (polite?.kind === 'target' && last?.kind === 'start') queued[queued.length - 1] = {kind: 'start', texts: [last.texts[0], ...polite.texts]};
+        else if (polite) queued.push(polite);
         if (urgent) queue.current.urgent = urgent;
     };
-    const announce = (polite?: NonNullable<Queue['polite']>, urgent?: readonly LocalizedText[]) => { enqueue(polite, urgent); requestFlush(); };
+    const announce = (polite?: Transition, urgent?: readonly LocalizedText[]) => { enqueue(polite, urgent); requestFlush(); };
     const report = (outcome: SelectionOutcome) => { if (outcome.diagnostic) warn(outcome.diagnostic.path, outcome.diagnostic.reason); return outcome.block; };
     /** The latest committed model while selection can act: data, the pair present and not blocking. */
     const current = () => { const latest = committed.current; return latest.kind === 'data' && latest.props.selection !== undefined && !latest.blocking ? latest as unknown as Data : null; };
@@ -87,7 +92,9 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
         if (!held) return;
         press.current = null; held.done.abort();
         const grid = gridRef.current;
-        if (held.recognized && grid?.hasPointerCapture?.(held.pointer)) grid.releasePointerCapture(held.pointer);
+        if (!held.recognized || !grid) return;
+        if (grid.hasPointerCapture?.(held.pointer)) grid.releasePointerCapture(held.pointer);
+        grid.style.removeProperty('user-select'); grid.style.removeProperty('-webkit-user-select');
     };
     const cancel = (explicit: boolean) => {
         endPress();
@@ -151,7 +158,8 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
         if (!root) return;
         const stop = (event: Event) => { event.stopPropagation(); event.preventDefault(); };
         root.addEventListener('click', stop, {capture: true, once: true});
-        root.ownerDocument.addEventListener('pointerdown', () => root.removeEventListener('click', stop, true), {capture: true, once: true});
+        // The click of a release follows its pointerup in the same task; a later click, such as a virtual one, is not the drop's.
+        root.ownerDocument.defaultView?.setTimeout(() => root.removeEventListener('click', stop, true), 0);
     };
     /** Focus moves to the endpoint without scrolling; MonthView skips its scroll for this one focus. */
     const focusQuietly = (date: string) => {
@@ -166,6 +174,8 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
         held.recognized = true;
         const grid = gridRef.current;
         if (grid && typeof grid.setPointerCapture === 'function') grid.setPointerCapture(held.pointer);
+        // A recognized drag selects dates, not text; a press that never becomes one keeps the native text selection.
+        grid?.style.setProperty('user-select', 'none'); grid?.style.setProperty('-webkit-user-select', 'none');
         grid?.ownerDocument.getSelection()?.removeAllRanges();
         const next: SelectionDraft = {mode: 'drag', anchor: held.date, endpoint: over}, value = draftRange(next)!;
         const block = report(checkRange(value, latest.props.interactionPolicy));
@@ -219,7 +229,7 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
             if (!held.recognized || key.key !== 'Escape') return;
             key.preventDefault(); key.stopPropagation(); abandon();
         }, {capture: true, signal});
-        document.addEventListener('selectstart', start => start.preventDefault(), {capture: true, signal});
+        document.addEventListener('selectstart', start => { if (held.recognized) start.preventDefault(); }, {capture: true, signal});
     };
 
     // Unmount ends a held press silently.
@@ -253,8 +263,8 @@ export function useSelection<I, S>(model: CalendarModel<I, S>, options: Selectio
     });
     const take = useCallback(() => {
         const {polite, urgent} = queue.current;
-        queue.current = {};
-        return {polite: polite?.texts, urgent};
+        queue.current = {polite: []};
+        return {polite: polite.length ? polite.flatMap(transition => transition.texts) : undefined, urgent};
     }, []);
     const flush = useCallback(() => {
         const {polite, urgent} = take();

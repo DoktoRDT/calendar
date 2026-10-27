@@ -69,7 +69,7 @@ export function CalendarShell<I, S>({input, surface, renderView, renderToolbarCo
                     <span className="nc-calendar-progress-indicator"/></div>
             </>);
     const errorStatus = () => state.dataState.status === 'error' && status(model.kind === 'contract' ? model.messages.invalidConfigurationLabel : model.message('errorLabel'), false, errorBody());
-    const modeLine = model.kind === 'data' && !model.blocking ? renderModeLine?.(controller) : null;
+    const modeLine = model.kind === 'data' && !model.blocking ? renderModeLine?.(controller) : null, statusSlot = model.blocking || placement === 'banner';
     const toolbar = () => {
         if (model.kind !== 'data') return null;
         const context = {...model.state, anchorDate: input.anchorDate, visibleRange: model.range};
@@ -104,8 +104,9 @@ export function CalendarShell<I, S>({input, surface, renderView, renderToolbarCo
         <div ref={politeRef} className="nc-visually-hidden" role="status" aria-live="polite" aria-atomic="true"/>
         <div ref={urgentRef} className="nc-visually-hidden" role="alert" aria-atomic="true"/>
         {toolbar()}
-        {/* The mode line joins this slot last: without it the slot and the ids under the view stay exactly as before. */}
-        {(model.blocking || placement === 'banner' || !!modeLine) && <>{loadingStatus()}{errorStatus()}{modeLine}</>}
+        {/* The mode line joins this slot last: without it the slot and the ids under the view stay exactly as before. A refresh
+            progress belongs to the view; this slot shows a status only as a blocking state or a banner. */}
+        {(statusSlot || !!modeLine) && <>{statusSlot && loadingStatus()}{statusSlot && errorStatus()}{modeLine}</>}
         {/* QA-08: `aria-busy` marks the stale content only (the grid and an inline agenda); the live regions of the root and
             the progress region stay outside the busy subtree. */}
         {model.kind === 'data' && !model.blocking && <div ref={viewRef} className="nc-calendar-view" lang={model.lang} data-month-heading={headingId}>
