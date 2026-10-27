@@ -7,10 +7,10 @@ afterEach(() => {
 });
 
 // Since Vitest 4 the jsdom environment keeps Node's AbortController and converts its signals only in the main window's
-// addEventListener (vitest-dev/vitest#8704). A document of another realm (the iframe in hosts.test.tsx) rejects such a
-// signal, and the press listener of MonthView threw there. Browsers accept a signal of any realm, and jsdom accepts its
-// own in every window, so the jsdom suites use jsdom's controller, as under Vitest 3; no test needs Node's for fetch.
-// `jsdom` is the JSDOM instance Vitest exposes; `window` and `document.defaultView` are the Node global here.
+// addEventListener (vitest-dev/vitest#8390, #8704). A document of another realm (the iframe in hosts.test.tsx) rejects
+// such a signal, and the press listener of MonthView threw there. Browsers accept a signal of any realm, and jsdom
+// accepts its own in every window, so the jsdom suites use jsdom's controller, as under Vitest 3; no test needs Node's
+// for fetch. `jsdom` is the JSDOM instance Vitest exposes; `window` and `document.defaultView` are Node's global here.
 if (typeof document !== 'undefined') {
     const {AbortController, AbortSignal} = (globalThis as unknown as {jsdom: {window: typeof globalThis}}).jsdom.window;
     Object.assign(globalThis, {AbortController, AbortSignal});
