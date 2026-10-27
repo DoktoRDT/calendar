@@ -3,7 +3,7 @@ import {act, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {hydrateRoot} from 'react-dom/client';
 import {renderToString} from 'react-dom/server';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, getCalendarVisibleRange, type CalendarItem, type CalendarProps} from '../../../index.js';
 
 // T14 alpha.1 acceptance rows through the public facade (ledger R01, R02.1, R05, R06, R07, R16, R59, §5.1).
@@ -11,8 +11,8 @@ const base = (): CalendarProps => ({items: [], anchorDate: '2026-09-01', today: 
 const cell = (date: string) => screen.getAllByRole('gridcell').find(node => node.dataset.date === date)!;
 const timed = (id: string, start: string, end?: string): CalendarItem => ({id, title: id, data: null, interval: {kind: 'timed', start, ...(end ? {end} : {})}});
 const allDay = (id: string, start: string, end: string): CalendarItem => ({id, title: id, data: null, interval: {kind: 'allDay', start, end}});
-const warnings = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map(([message]) => String(message));
-let warn: ReturnType<typeof vi.spyOn>;
+const warnings = (spy: MockInstance<typeof console.warn>) => spy.mock.calls.map(([message]) => String(message));
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { vi.restoreAllMocks(); });
 
