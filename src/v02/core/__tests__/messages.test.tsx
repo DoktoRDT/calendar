@@ -237,6 +237,16 @@ describe('DST gap wall time', () => {
             .message('moveDstGapReason', '2026-03-29', time);
         expect(override.fragments.map(part => [part.text, part.kind, part.lang])).toEqual([['Lücke um ', 'message', 'de-DE'], [time, 'date', 'fr-FR']]);
         expect(renderToStaticMarkup(<LocalizedText value={override}/>)).toContain(`lang="fr-FR" dir="ltr">${time}`);
+        const russian = messages('ru-RU').message('moveDstGapReason', '2026-03-29', '02:30');
+        expect(russian.lang).toBe('ru-RU');
+        expect(russian.fragments.filter(part => part.kind !== 'message').map(part => [part.text, part.kind, part.lang, part.dir])).toEqual([
+            ['02:30', 'date', 'ru-RU', 'ltr'], [createDateFormatting(resolveLocale({locale: 'ru-RU'}), 'UTC').date('2026-03-29', 'short').text, 'date', 'ru-RU', 'ltr'],
+        ]);
+    });
+    it('keeps each precision apart on one formatting instance, as a Calendar keeps one', () => {
+        const format = createDateFormatting(resolveLocale({locale: 'en-US'}), 'UTC');
+        const labels = [wall(2, 30, 15, 250), wall(2, 30, 15), wall(2, 30), wall(2, 30, 0, 5)].map(value => format.wallTime(value).text.replace(/\s/g, ' '));
+        expect(labels).toEqual(['2:30:15.250 AM', '2:30:15 AM', '2:30 AM', '2:30:00.005 AM']);
     });
 });
 describe('contract-error locale chain', () => {

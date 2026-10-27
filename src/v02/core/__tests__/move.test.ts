@@ -7,7 +7,7 @@ import {addCalendarDays, createDateAdapter, parseRFC3339, type WallTime} from '.
 import {getCalendarVisibleRange} from '../formatting.js';
 import {
     evaluateMoveTarget, formatUtcOffset, isInSupportedMonthGrid, moveOriginDate, reconcileMoveDraft, startMoveDraft,
-    type MoveCancelReason, type MoveCommit, type MoveOrigin, type MoveTarget,
+    type MoveCancelReason, type MoveCommit, type MoveOrigin, type MoveStep, type MoveTarget,
 } from '../move.js';
 import {validateCalendarInput, type ValidatedItem} from '../validation.js';
 
@@ -58,10 +58,13 @@ function blockOf(result: MoveTarget<unknown>): Blocked['block'] {
     expect(result.kind).toBe('blocked');
     return (result as Blocked).block;
 }
-/** A data-free view of a result, for comparisons that must not traverse the item. */
+/** Data-free views of a result and a step: a failing comparison prints its diff, which would otherwise read the sealed `data`. */
 const summary = (result: MoveTarget<unknown>, latest: ValidatedItem<unknown, unknown>) => result.kind === 'allowed'
     ? {...result, proposal: {...result.proposal, item: result.proposal.item === latest.item, previousInterval: result.proposal.previousInterval === latest.item.interval}}
     : result.kind === 'noop' ? {...result, item: result.item === latest.item} : result;
+/** Identity without handing an item to a matcher, whose failure output would read its sealed `data`. */
+const expectSame = (actual: unknown, expected: unknown) => expect(actual === expected, 'expected the same object').toBe(true);
+const stepView = (step: MoveStep<unknown, unknown>) => step.outcome?.kind === 'keep' ? {draft: step.draft, outcome: {kind: 'keep', itemId: step.outcome.latest.item.id}} : step;
 
 type Expected = {proposed: CalendarInterval} | {noop: true} | {gap: string} | {boundary: true};
 type ProposalRow = {n: number; zone: string; interval: CalendarInterval; origin: string; target: string; startDate: string | null; expected: Expected; foldOffset?: number};
@@ -139,7 +142,7 @@ describe('proposal table (rules 1–6)', () => {
             expect(proposal.proposedInterval).toStrictEqual(expected.proposed);
             expect('end' in proposal.proposedInterval).toBe('end' in expected.proposed);
             expect('timeZone' in proposal.proposedInterval).toBe('timeZone' in expected.proposed);
-            expect(proposal.item).toBe(latest.item);
+            expectSame(proposal.item, latest.item);
             expect(proposal.previousInterval).toBe(latest.item.interval);
             // Rule 1: every input method proposes the same interval for the same origin and target.
             for (const input of ['touch', 'keyboard'] as const) {
@@ -149,12 +152,12 @@ describe('proposal table (rules 1–6)', () => {
             }
         } else if ('noop' in expected) {
             expect(result.kind).toBe('noop');
-            expect(result.kind === 'noop' && result.item).toBe(latest.item);
+            expectSame(result.kind === 'noop' && result.item, latest.item);
             expect(Object.keys(result).sort()).toEqual(['item', 'kind', 'startDate', ...(foldOffset === undefined ? [] : ['foldOffset'])].sort());
         } else if ('gap' in expected) {
-            expect(result).toStrictEqual({kind: 'blocked', block: {kind: 'gap', wall: wallOf(expected.gap)}, startDate});
+            expect(summary(result, latest)).toStrictEqual({kind: 'blocked', block: {kind: 'gap', wall: wallOf(expected.gap)}, startDate});
         } else {
-            expect(result).toStrictEqual({kind: 'blocked', block: {kind: 'boundary'}, startDate});
+            expect(summary(result, latest)).toStrictEqual({kind: 'blocked', block: {kind: 'boundary'}, startDate});
         }
     });
     // The fold and its offset belong to Calendar.timeZone, serialization to the author zone (Watch out for: two zones, two jobs).
@@ -191,7 +194,7 @@ describe('proposal table (rules 1–6)', () => {
         expect(step.outcome?.kind).toBe('keep');
         const latest = latestOf(commitOf({items: [rewritten], timeZone: 'Europe/Berlin'}));
         const result = evaluateMoveTarget(draft, latest, '2026-10-25', 'keyboard', undefined, dates);
-        expect(result.kind === 'noop' && result.item).toBe(rewritten);
+        expectSame(result.kind === 'noop' && result.item, rewritten);
         expect(result.kind === 'noop' && result.item.interval).toStrictEqual(moment('2026-10-25T01:30:00.000Z'));
         expect(result.foldOffset).toBe(3_600_000);
     });
@@ -223,12 +226,24 @@ describe('timed start outside the ISO date domain (Q6)', () => {
         const draft = startMoveDraft(latest, 'America/New_York', {kind: 'grid', grabDate: '0001-02-01'});
         const policy = {canMoveItem: vi.fn(() => true as const), canDropItem: vi.fn(() => true as const)};
         const noopResult = evaluateMoveTarget(draft, latest, '0001-02-01', 'pointer', policy, dates);
-        expect(noopResult.kind === 'noop' && noopResult.item).toBe(latest.item);
+        expectSame(noopResult.kind === 'noop' && noopResult.item, latest.item);
         expect(noopResult.startDate).toBeNull();
         expect('foldOffset' in noopResult).toBe(false);
-        expect(evaluateMoveTarget(draft, latest, '0001-01-31', 'pointer', policy, dates)).toStrictEqual({kind: 'blocked', block: {kind: 'boundary'}, startDate: null});
+        expect(summary(evaluateMoveTarget(draft, latest, '0001-01-31', 'pointer', policy, dates), latest)).toStrictEqual({kind: 'blocked', block: {kind: 'boundary'}, startDate: null});
         expect(policy.canMoveItem).not.toHaveBeenCalled();
         expect(policy.canDropItem).not.toHaveBeenCalled();
+    });
+    // Unreachable through any grid (Q6), but evaluateMoveTarget stays total: a local start of 10000-01-01 in Tokyo.
+    it.each([
+        {grab: '9999-11-29', target: '9999-11-30', expected: {kind: 'blocked', block: {kind: 'boundary'}, startDate: null}},
+        {grab: '9999-11-30', target: '9999-11-30', expected: {kind: 'noop', item: true, startDate: null}},
+        {grab: '9999-11-30', target: '9999-11-29', expected: {kind: 'allowed', startDate: '9999-12-31',
+            proposal: {item: true, previousInterval: true, input: 'pointer', proposedInterval: moment('9999-12-31T05:00:00+09:00')}}},
+    ])('a local 10000-01-01 start with grid@$grab → $target', ({grab, target, expected}) => {
+        const latest = latestOf(commitOf({items: [itemOf(moment('9999-12-31T20:00:00Z'))], timeZone: 'Asia/Tokyo'}));
+        expect(moveOriginDate(latest.interval, 'Asia/Tokyo', dates)).toBeNull();
+        const result = evaluateMoveTarget(startMoveDraft(latest, 'Asia/Tokyo', {kind: 'grid', grabDate: grab}), latest, target, 'pointer', undefined, dates);
+        expect(summary(result, latest)).toStrictEqual(expected);
     });
 });
 
@@ -324,7 +339,8 @@ describe('reconciliation table (rules 8 and 9)', () => {
     const withInterval = (item: CalendarItem, interval: Partial<CalendarInterval> | CalendarInterval) => ({...item, interval: {...item.interval, ...interval} as CalendarInterval});
     type Next = (item: CalendarItem, items: readonly CalendarItem[]) => Record<string, unknown>;
     type Outcome = 'keep' | MoveCancelReason;
-    const rows: {n: number; next: Next; outcome: Outcome; moment?: true}[] = [
+    // `then`: later commits of the same sequence, each fed the draft the previous step returned ('none': no open draft).
+    const rows: {n: number; next: Next; outcome: Outcome; moment?: true; then?: [Next, MoveCancelReason | 'none'][]}[] = [
         {n: 1, next: (_item, items) => props(items), outcome: 'keep'},
         {n: 2, next: item => props([{...item, interval: {...item.interval}}]), outcome: 'keep'},
         {n: 3, next: item => props([{...item, title: 'Daily', data: cyclic(), calendarId: 'home'}]), outcome: 'keep'},
@@ -352,23 +368,26 @@ describe('reconciliation table (rules 8 and 9)', () => {
         {n: 24, next: item => props([withInterval(item, {end: '2026-09-03T11:30:00+03:00'})], {timeZone: 'Europe/Berlin'}), outcome: 'timeZone'},
         {n: 25, next: () => props([], {dataState: {status: 'loading', phase: 'initial'}}), outcome: 'blocking'},
         {n: 26, next: (_item, items) => props(items, {interactionPolicy: {canMoveItem: () => ({allowed: false, reason: 'Locked'})}}), outcome: 'keep'},
+        // The original commit, then row 5, then the original commit again: a cancelled draft is not restored.
+        {n: 27, next: (_item, items) => props(items), outcome: 'keep', then: [
+            [item => props([withInterval(item, {end: '2026-09-03T11:30:00+03:00'})]), 'interval'], [(_item, items) => props(items), 'none']]},
     ];
     const open = (interval: CalendarInterval) => {
         const item = itemOf(interval, {calendarId: 'work'}), items = [item];
         const latest = latestOf(commitOf(props(items)));
         return {item, items, draft: startMoveDraft(latest, 'Europe/Moscow', {kind: 'start'})};
     };
-    it.each(rows)('row $n: $outcome', ({n, next, outcome, moment: isMoment}) => {
+    it.each(rows)('row $n: $outcome', ({n, next, outcome, moment: isMoment, then = []}) => {
         const {item, items, draft} = open(isMoment ? momentInterval : standupInterval);
         const nextProps = next(item, items), step = reconcileMoveDraft(draft, commitOf(nextProps));
         if (outcome !== 'keep') {
-            expect(step).toStrictEqual({draft: null, outcome: {kind: 'cancel', reason: outcome}});
+            expect(stepView(step)).toStrictEqual({draft: null, outcome: {kind: 'cancel', reason: outcome}});
             return;
         }
         expect(step.draft).toBe(draft);
         expect(step.outcome?.kind).toBe('keep');
         const latest = step.outcome?.kind === 'keep' ? step.outcome.latest : undefined;
-        expect(latest?.item).toBe((nextProps.items as readonly CalendarItem[]).find(value => value.id === 'a'));
+        expectSame(latest?.item, (nextProps.items as readonly CalendarItem[]).find(value => value.id === 'a'));
         if (n === 3) {
             expect(latest?.item.title).toBe('Daily');
             expect(draft.title).toBe('Standup');
@@ -385,21 +404,18 @@ describe('reconciliation table (rules 8 and 9)', () => {
             const policy = (nextProps.interactionPolicy as CalendarInteractionPolicy);
             expect(blockOf(evaluateMoveTarget(draft, latest!, '2026-09-04', 'keyboard', policy, dates))).toStrictEqual({kind: 'policy', reason: 'Locked'});
         }
-    });
-    it('row 27: a cancelled draft is not restored when the original commit returns', () => {
-        const {item, items, draft} = open(standupInterval);
-        const first = reconcileMoveDraft(draft, commitOf(props(items)));
-        expect(first.draft).toBe(draft);
-        expect(first.outcome?.kind).toBe('keep');
-        const second = reconcileMoveDraft(first.draft, commitOf(props([withInterval(item, {end: '2026-09-03T11:30:00+03:00'})])));
-        expect(second).toStrictEqual({draft: null, outcome: {kind: 'cancel', reason: 'interval'}});
-        expect(reconcileMoveDraft(second.draft, commitOf(props(items)))).toStrictEqual({draft: null, outcome: null});
+        let current = step.draft;
+        for (const [later, expected] of then) {
+            const following = reconcileMoveDraft(current, commitOf(later(item, items)));
+            expect(stepView(following)).toStrictEqual({draft: null, outcome: expected === 'none' ? null : {kind: 'cancel', reason: expected}});
+            current = following.draft;
+        }
     });
     it('gives equal steps when called twice', () => {
         const {items, draft} = open(standupInterval);
         const commit = commitOf(props(items));
-        expect(reconcileMoveDraft(draft, commit)).toStrictEqual(reconcileMoveDraft(draft, commit));
-        expect(reconcileMoveDraft(null, commit)).toStrictEqual({draft: null, outcome: null});
+        expect(stepView(reconcileMoveDraft(draft, commit))).toStrictEqual(stepView(reconcileMoveDraft(draft, commit)));
+        expect(stepView(reconcileMoveDraft(null, commit))).toStrictEqual({draft: null, outcome: null});
     });
 });
 
@@ -430,20 +446,20 @@ describe('policy table (rule 10)', () => {
         const step = reconcileMoveDraft(draft, commitOf({items: [changed ?? item], timeZone: zone, ...(policy ? {interactionPolicy: policy} : {})}));
         expect(step.draft).toBe(draft);
         const latest = latestOf(commitOf({items: [changed ?? item], timeZone: zone}), 'b');
-        expect(step.outcome?.kind === 'keep' && step.outcome.latest.item).toBe(latest.item);
+        expectSame(step.outcome?.kind === 'keep' && step.outcome.latest.item, latest.item);
         const result = evaluateMoveTarget(draft, latest, target, 'keyboard', policy, dates);
         expect(summary(result, latest)).toStrictEqual(expected);
         if (n === 1) expect(Object.keys(allowed(result)).sort()).toEqual(['input', 'item', 'previousInterval', 'proposedInterval']);
         if (n === 5) expect([(policy as ReturnType<typeof spies>).canMoveItem.mock.calls.length, (policy as ReturnType<typeof spies>).canDropItem.mock.calls.length]).toEqual([0, 0]);
         if (n === 6) {
             const {canDropItem, canMoveItem} = policy as ReturnType<typeof spies>;
-            expect(canMoveItem.mock.calls.length === 1 && canMoveItem.mock.calls[0][0]).toBe(changed);
+            expectSame(canMoveItem.mock.calls.length === 1 && canMoveItem.mock.calls[0][0], changed);
             expect(canDropItem).toHaveBeenCalledTimes(1);
             const received = canDropItem.mock.calls[0][0] as Allowed['proposal'];
             expect(Object.keys(received).sort()).toEqual(['input', 'item', 'previousInterval', 'proposedInterval']);
-            expect(received.item).toBe(changed);
+            expectSame(received.item, changed);
             expect(received.previousInterval).toBe(changed!.interval);
-            expect(allowed(result)).toBe(received);
+            expectSame(allowed(result), received);
         }
     });
     it('a policy object without callbacks allows', () => {
@@ -462,7 +478,7 @@ describe('maintainer decisions on policy (Q4, Q5, Q7)', () => {
         const latest = latestOf(commitOf({items: [itemOf(allDay('2026-09-03', '2026-09-04'))], timeZone: 'Europe/Moscow'}));
         const policy = {canMoveItem: vi.fn(() => ({allowed: false, reason: 'Locked'}) as const), canDropItem: vi.fn(() => true as const)};
         const result = evaluateMoveTarget(startMoveDraft(latest, 'Europe/Moscow', {kind: 'start'}), latest, '2026-09-03', 'keyboard', policy, dates);
-        expect(result.kind === 'noop' && result.item).toBe(latest.item);
+        expectSame(result.kind === 'noop' && result.item, latest.item);
         expect(policy.canMoveItem).not.toHaveBeenCalled();
         expect(policy.canDropItem).not.toHaveBeenCalled();
     });
@@ -482,14 +498,14 @@ describe('maintainer decisions on policy (Q4, Q5, Q7)', () => {
         const canMoveItem = vi.fn((_item: unknown) => true as const);
         evaluateMoveTarget(draft, latest, '2026-03-30', 'touch', {canMoveItem}, dates);
         expect(canMoveItem).toHaveBeenCalledTimes(1);
-        expect(canMoveItem.mock.calls[0][0]).toBe(latest.item);
+        expectSame(canMoveItem.mock.calls[0][0], latest.item);
     });
     it.each([['false', false], ['undefined', undefined], ['{allowed: false} without a reason', {allowed: false}], ['{allowed: true}', {allowed: true}],
         ['a Promise', Promise.resolve(true)]])('Q7: a malformed canMoveItem result (%s) denies with one diagnostic and skips canDropItem', (_label, value) => {
         const {latest, draft} = berlin();
         const canDropItem = vi.fn(() => true as const);
         const result = evaluateMoveTarget(draft, latest, '2026-03-30', 'keyboard', {canMoveItem: () => value as never, canDropItem}, dates);
-        expect(result).toStrictEqual({kind: 'blocked', startDate: '2026-03-30',
+        expect(summary(result, latest)).toStrictEqual({kind: 'blocked', startDate: '2026-03-30',
             block: {kind: 'policy', reason: undefined, diagnostic: {path: 'interactionPolicy.canMoveItem', reason: malformed}}});
         expect(canDropItem).not.toHaveBeenCalled();
     });
@@ -497,7 +513,7 @@ describe('maintainer decisions on policy (Q4, Q5, Q7)', () => {
         const latest = latestOf(commitOf({items: [itemOf(moment('2026-10-24T02:30:00+02:00'))], timeZone: 'Europe/Berlin'}));
         const result = evaluateMoveTarget(startMoveDraft(latest, 'Europe/Berlin', {kind: 'start'}), latest, '2026-10-25', 'keyboard',
             {canDropItem: () => ({allowed: false, reason: 'Closed'})}, dates);
-        expect(result).toStrictEqual({kind: 'blocked', block: {kind: 'policy', reason: 'Closed'}, startDate: '2026-10-25', foldOffset: 7_200_000});
+        expect(summary(result, latest)).toStrictEqual({kind: 'blocked', block: {kind: 'policy', reason: 'Closed'}, startDate: '2026-10-25', foldOffset: 7_200_000});
         expect(formatUtcOffset(result.foldOffset!)).toBe('+02:00');
     });
     it('Q7: a throwing callback propagates the same error and leaves the draft open', () => {
@@ -507,6 +523,9 @@ describe('maintainer decisions on policy (Q4, Q5, Q7)', () => {
         try { evaluateMoveTarget(draft, latest, '2026-03-30', 'keyboard', {canDropItem() { throw failure; }}, dates); } catch (error) { thrown = error; }
         expect(thrown).toBe(failure);
         expect(() => evaluateMoveTarget(draft, latest, '2026-03-30', 'keyboard', {canMoveItem() { throw failure; }}, dates)).toThrow(failure);
+        thrown = undefined;
+        try { evaluateMoveTarget(draft, latest, '2026-03-30', 'keyboard', {canMoveItem() { throw failure; }}, dates); } catch (error) { thrown = error; }
+        expect(thrown).toBe(failure);
         expect(reconcileMoveDraft(draft, commitOf({items: [latest.item], timeZone: 'Europe/Berlin'})).draft).toBe(draft);
     });
 });
