@@ -305,7 +305,24 @@ check('examples-current-slice', fail => {
 });
 // Review 2026-10-09-1: the #messages table lists exactly the keys the prerelease renders or announces. The keys are read
 // from the message calls of the SDK sources; a key rendered only for an API outside the prerelease is named here.
-const laterOnlyMessages = {selectedStateLabel: 'rendered only for an accepted selection (beta.1)'};
+const laterOnlyMessages = {
+    selectedStateLabel: 'rendered only for an accepted selection (beta.1)',
+    selectionDraftStateLabel: 'the state of a date cell inside a selection draft (beta.1)',
+    selectDateLabel: 'the agenda Select day command, only with the selection pair (beta.1)',
+    selectRangeLabel: 'the toolbar Select range command, only with the selection pair (beta.1)',
+    clearSelectionLabel: 'the toolbar Clear selection command, only with the selection pair (beta.1)',
+    createLabel: 'the toolbar Create command, only with onCreateRequest (beta.1)',
+    unavailableStateLabel: 'the state of a date that selection policy blocks, only with the selection pair (beta.1)',
+    genericBlockedReason: 'the reason of a malformed selection policy result (beta.1)',
+    selectionBoundaryReason: 'the reason why 9999-12-31 cannot be selected (beta.1)',
+    rangeSelectionInstructions: 'the grid description and speech of range mode (beta.1)',
+    blockedAnnouncement: 'speech of a blocked selection attempt (beta.1)',
+    selectionStartedAnnouncement: 'speech of a new range draft (beta.1)',
+    selectionTargetAnnouncement: 'speech of a range draft target (beta.1)',
+    selectionCancelledAnnouncement: 'speech of a cancelled range draft (beta.1)',
+    selectionCompletedAnnouncement: 'speech of an accepted selection request (beta.1)',
+    selectionClearedAnnouncement: 'speech of an accepted Clear selection request (beta.1)',
+};
 function renderedMessages() {
     const files = [], visit = directory => {
         for (const entry of readdirSync(at(directory), {withFileTypes: true})) {

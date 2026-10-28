@@ -113,6 +113,11 @@ export type GregorianProjection = Readonly<{
     offsetMilliseconds: number;
     date: string | null;
 }>;
+/** A wall time in a zone: one instant (`fold`: it occurs twice and `instant` is the earlier one), none, or none in the domain. */
+export type WallTimeResolution =
+    | Readonly<{kind: 'instant'; instant: number; fold: boolean}>
+    | Readonly<{kind: 'gap'}>
+    | Readonly<{kind: 'outsideDomain'}>;
 const pad = (value: number, width = 2) => String(value).padStart(width, '0');
 
 const packageTimeZones: ReadonlySet<string> = new Set(acceptedTimeZoneIdentifiers);
@@ -160,7 +165,8 @@ export function createDateAdapter(acceptedTimeZones: ReadonlySet<string> = packa
         const fraction = fields.millisecond ? `.${pad(fields.millisecond, 3)}` : '';
         return `${fields.date}T${pad(fields.hour)}:${pad(fields.minute)}:${pad(fields.second)}${fraction}${offset}`;
     };
-    const resolveWallTime = (input: WallTime, timeZone: string): number => {
+    /** Gap, fold and the instant domain as data; invalid input (date, field, zone, offset) still throws RangeError. */
+    const resolveWallTimeResult = (input: WallTime, timeZone: string): WallTimeResolution => {
         validateTimeZone(timeZone);
         const date = parseISODate(input.date);
         for (const [value, maximum] of [[input.hour, 23], [input.minute, 59], [input.second, 59], [input.millisecond, 999]]) {
@@ -184,11 +190,14 @@ export function createDateAdapter(acceptedTimeZones: ReadonlySet<string> = packa
             if (projected.date === input.date && projected.hour === input.hour && projected.minute === input.minute
                 && projected.second === input.second && projected.millisecond === input.millisecond) candidates.push(instant);
         }
-        if (!candidates.length) {
-            if (outsideDomain) return fail('Local wall time exceeds the supported instant domain');
-            return fail('Local wall time is in a timezone gap');
-        }
-        return Math.min(...candidates);
+        if (!candidates.length) return {kind: outsideDomain ? 'outsideDomain' : 'gap'};
+        return {kind: 'instant', instant: Math.min(...candidates), fold: candidates.length > 1};
+    };
+    const resolveWallTime = (input: WallTime, timeZone: string): number => {
+        const result = resolveWallTimeResult(input, timeZone);
+        if (result.kind === 'outsideDomain') return fail('Local wall time exceeds the supported instant domain');
+        if (result.kind === 'gap') return fail('Local wall time is in a timezone gap');
+        return result.instant;
     };
     const parseInterval = (input: unknown): CanonicalInterval => {
         const interval = object(input);
@@ -200,5 +209,5 @@ export function createDateAdapter(acceptedTimeZones: ReadonlySet<string> = packa
         if (end !== undefined && end < start) return fail('Timed end must be >= start');
         return {kind: 'timed', start, end, timeZone};
     };
-    return {validateTimeZone, parseInterval, projectInstant, serializeInstant, resolveWallTime};
+    return {validateTimeZone, parseInterval, projectInstant, serializeInstant, resolveWallTime, resolveWallTimeResult};
 }

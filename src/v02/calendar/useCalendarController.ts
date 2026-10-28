@@ -11,8 +11,10 @@ import {createCalendarModel, createControllerServices, type CalendarModel} from 
 import {useToday} from './useToday.js';
 import {useRootName} from './useRootName.js';
 import {useLayoutObserver, useResolvedLayout} from './useResponsiveLayout.js';
+import {useSelection} from './useSelection.js';
 
 const useClientLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
+const joined = (base: readonly LocalizedText[] | undefined, extra: readonly LocalizedText[] | undefined) => extra?.length ? [...base ?? [], ...extra] : base;
 /**
  * Diagnostics of render-time message calls (for example a `messages` function returning '') and item colors reach the
  * development console after the commit of any component that rendered them, once each (QA-23).
@@ -95,6 +97,9 @@ export function useCalendarController<I, S>(input: CalendarProps<I, S>, surface?
     }, [updateNavigation]);
     const focusDateCell = useCallback((date: string) => focusElement(cells.current.get(date)), []);
     const getDateCell = useCallback((date: string) => cells.current.get(date), []);
+    // Its commit effect runs before the one below, which merges the queued selection speech into its own payload.
+    const selection = useSelection(model, {overlays, warn, rootRef, gridRef, weekdaysRef, getDateCell, focusDate, agendaDate: currentAgenda?.date ?? null});
+    const {take: takeSelection, flush: flushSelection, cancelDraft: cancelSelectionDraft} = selection;
 
     useEffect(() => {
         const root = rootRef.current, document = root?.ownerDocument;
@@ -154,6 +159,7 @@ export function useCalendarController<I, S>(input: CalendarProps<I, S>, surface?
         const result = state ? commitNavigation(state, snapshot, {grid: inGrid, calendar: inCalendar, initiator: active === initiator.current}) : null;
         let navigationFocused = false;
         if (result) {
+            if (result.external) cancelSelectionDraft();
             if (result.state.month !== state!.month) save();
             updateNavigation(result.state);
             if (result.focus) navigationFocused = focusDateCell(result.focus);
@@ -194,7 +200,9 @@ export function useCalendarController<I, S>(input: CalendarProps<I, S>, surface?
         // completion, so the next completion is a new payload, not the same text again (QA-D-4-02); a month stays.
         const politePayload = urgent.length ? [] : refreshStart && !polite.length ? completionShown.current ? [] : undefined : polite;
         if (changedStatus || polite.length || urgent.length) {
-            overlays.announce(politePayload, urgent);
+            // One DOM mutation per channel: selection speech queued for this commit joins this payload instead of replacing it.
+            const own = takeSelection();
+            overlays.announce(joined(politePayload, own.polite), joined(urgent, own.urgent));
             if (politePayload) completionShown.current = completed;
         }
         for (const diagnostic of model.diagnostics) warn(diagnostic.path, diagnostic.reason, diagnostic.key);
@@ -202,7 +210,9 @@ export function useCalendarController<I, S>(input: CalendarProps<I, S>, surface?
             const key = `${model.range.start}/${model.range.end}/${model.range.timeZone}`;
             if (key !== lastRange.current) { lastRange.current = key; input.onVisibleRangeChange?.({...model.range}); }
         }
-    }, [model, currentNavigation, snapshot, currentAgenda, agenda, updateNavigation, focusDateCell, warn, input, overlays, save]);
+    }, [model, currentNavigation, snapshot, currentAgenda, agenda, updateNavigation, focusDateCell, warn, input, overlays, save, takeSelection, cancelSelectionDraft]);
+    // Selection speech that no controller payload took in this commit.
+    useEffect(flushSelection);
 
     const navigate = (date: string, source: NavigationSource, sourceElement?: HTMLElement, kind: NavigationKind = 'date') => {
         const state = navRef.current;
@@ -222,7 +232,7 @@ export function useCalendarController<I, S>(input: CalendarProps<I, S>, surface?
         const state = navRef.current;
         if (state && snapshot) { save(); updateNavigation({...state, month: snapshot.month, date}); }
     };
-    return {model, today, agendaDate: currentAgenda?.date ?? null, focusDate, labelledBy, overlays, mirror, warn,
+    return {model, today, agendaDate: currentAgenda?.date ?? null, focusDate, labelledBy, overlays, mirror, warn, selection,
         rootRef, gridRef, viewRef, weekdaysRef, agendaRef, todayRef, statusRef, politeRef, urgentRef, registerCell, onDateFocus, navigate, cancelNavigation,
         onViewFocus: (node: Element) => { lastFocus.current = {node, surface: 'view'}; },
         getDateCell,

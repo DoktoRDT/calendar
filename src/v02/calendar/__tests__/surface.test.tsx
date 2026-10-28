@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {StrictMode} from 'react';
 import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, type CalendarProps} from '../../../index.js';
 import type {CalendarProps as ReferenceProps} from '../../reference.js';
 import {CalendarMonth} from '../CalendarMonth.js';
@@ -14,8 +14,8 @@ const items = (count: number, calendarId?: (index: number) => string) => Array.f
 const cell = (date: string) => screen.getAllByRole('gridcell').find(node => node.dataset.date === date)!;
 // Bypasses the published types on purpose: JavaScript consumers and casts reach the runtime gate.
 const Untyped = Calendar as unknown as (props: Record<string, unknown>) => ReturnType<typeof Calendar>;
-const unavailable = (warn: ReturnType<typeof vi.spyOn>) => warn.mock.calls.map(([message]) => String(message)).filter(message => message.includes('not available') || message.includes('removed in 0.2') || message.includes('not a Calendar prop'));
-let warn: ReturnType<typeof vi.spyOn>;
+const unavailable = (warn: MockInstance<typeof console.warn>) => warn.mock.calls.map(([message]) => String(message)).filter(message => message.includes('not available') || message.includes('removed in 0.2') || message.includes('not a Calendar prop'));
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { vi.unstubAllEnvs(); warn.mockRestore(); });
 

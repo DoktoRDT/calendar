@@ -10,7 +10,7 @@ import {Button, Icon, IconButton, Menu, MenuItem} from '../primitives/index.js';
 import {NonModalPopover} from '../primitives/NonModalPopover.js';
 import {ModalSheet} from '../primitives/ModalSheet.js';
 import {activeElement, writeLive} from './dom.js';
-import {available, containsComposed, focusAvailable, inertComposed, tabbables} from './focus.js';
+import {available, containsComposed, focusAvailable, focusReachable, inertComposed, reachable, tabbables} from './focus.js';
 
 const useClientLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 export type LiveEndpoints = {polite: HTMLElement | null; urgent: HTMLElement | null};
@@ -32,6 +32,9 @@ export function createOverlayStack(prefix = '') {
     // focus ownership and, while modal, its single live endpoint (§12.4).
     let aside: Aside | null = null;
     const children = new Map<string, Child>(), live = new Map<string, LiveEndpoints>(), listeners = new Set<() => void>();
+    // How each open package overlay closes itself (the agenda presentation with its children, the standalone selector), so
+    // a command outside them, such as the toolbar Select range, closes them all without focus recovery (#11).
+    const dismissals = new Set<() => void>();
     // Surfaces closed but still connected while React unmounts them; a collection may refocus itself there.
     let retired: HTMLElement[] = [];
     // The agenda root just mounted in a stale default target moves to the new one in the next commit (portal.ts).
@@ -68,6 +71,8 @@ export function createOverlayStack(prefix = '') {
         /** Set by the agenda owner each commit: while its surface moves, the owner, not the view, recovers displaced focus. */
         setMoving(value: boolean) { moving = value; },
         moving: () => moving,
+        registerDismiss(close: () => void) { dismissals.add(close); return () => { dismissals.delete(close); }; },
+        dismissAll() { for (const close of [...dismissals]) close(); },
         /** Registers the open standalone overlay; the cleanup forgets it and its live endpoints. */
         setAside(entry: Aside) {
             aside = entry; emit();
@@ -220,13 +225,14 @@ function ChildSurface({child, scope}: {child: Child; scope: OverlayScope}) {
         // §12.2: the menu sits logically right after its trigger inside the parent.
         const parent = stack.surfaceOf(child.parent), backwards = event.shiftKey;
         if (!parent) return;
-        const usable = (node: HTMLElement) => node.isConnected && containsComposed(parent, node) && available(node);
+        // A sequential move, so an aria-disabled control of the parent is a target too (#11 decision Q1).
+        const inOrder = (node: HTMLElement) => node.isConnected && containsComposed(parent, node) && reachable(node);
         const order = tabbables(parent), index = order.indexOf(child.trigger);
         // A removed trigger keeps its former logical position in the order recorded at open.
         const target = index >= 0 ? order[index + (backwards ? -1 : 1)] : backwards
-            ? child.order.slice(0, Math.max(child.index, 0)).reverse().find(usable) : child.order.slice(child.index + 1).find(usable);
+            ? child.order.slice(0, Math.max(child.index, 0)).reverse().find(inOrder) : child.order.slice(child.index + 1).find(inOrder);
         flushSync(() => stack.close(child.id, false));
-        if (target) { event.preventDefault(); event.stopPropagation(); focusAvailable(target); }
+        if (target) { event.preventDefault(); event.stopPropagation(); focusReachable(target); }
         // No target inside the parent: the parent's own Tab rule continues from the trigger.
         else focusAvailable(child.trigger.isConnected ? child.trigger : null);
     };
@@ -322,7 +328,7 @@ export function refocusDisplaced(surface: HTMLElement | null) {
     const document = surface?.ownerDocument, active = document && activeElement(document), last = surface && lastFocused.get(surface);
     const displaced = !!last && (!last.node.isConnected || (last.node as HTMLButtonElement).disabled === true);
     if (!surface?.isConnected || !document || !last || !displaced || active && active !== document.body && active !== last.node) return;
-    focusAvailable(neighbor(surface, last) ?? firstControl(surface) ?? tabbables(surface)[0]);
+    focusAvailable(neighbor(surface, last) ?? firstControl(surface) ?? tabbables(surface).find(available));
 }
 function neighbor(surface: HTMLElement, last: {node: Element; controls: readonly HTMLElement[]}) {
     const index = last.controls.indexOf(last.node as HTMLElement);

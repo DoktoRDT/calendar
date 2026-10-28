@@ -12,8 +12,16 @@ export function inertComposed(node: Element): boolean {
     for (let current: Element | null = node; current; current = composedParent(current)) if (current.matches('[inert],[aria-hidden="true"]')) return true;
     return false;
 }
+/** A usable focus target, for example of a recovery: rendered and enabled, and not `aria-disabled`. */
 export function available(node: HTMLElement): boolean {
-    if (!node.isConnected || node.matches(':disabled,[aria-disabled="true"]')) return false;
+    return !node.matches('[aria-disabled="true"]') && reachable(node);
+}
+/**
+ * In the sequential order as a browser's Tab sees it: rendered and not natively disabled. An `aria-disabled` control stays
+ * reachable, like the focusable unavailable commands of selection (#11 decision Q1), but is no recovery target.
+ */
+export function reachable(node: HTMLElement): boolean {
+    if (!node.isConnected || node.matches(':disabled')) return false;
     for (let current: Element | null = node; current; current = composedParent(current)) {
         if (current.matches('[hidden],[inert],[aria-hidden="true"]')) return false;
         const style = current.ownerDocument.defaultView?.getComputedStyle(current);
@@ -22,13 +30,13 @@ export function available(node: HTMLElement): boolean {
     }
     return true;
 }
-/** Flatten open shadow trees and assigned slots in composed sequential order. */
+/** Flatten open shadow trees and assigned slots in composed sequential order: every reachable node, `aria-disabled` ones included. */
 export function tabbables(root: Element, exclude?: Element): HTMLElement[] {
     const scope = (children: Iterable<Element>): HTMLElement[] => {
         const entries: {index: number; nodes: HTMLElement[]}[] = [];
         const visit = (node: Element) => {
             if (node === exclude) return;
-            const element = node as HTMLElement, focusable = typeof element.focus === 'function' && element.tabIndex >= 0 && available(element);
+            const element = node as HTMLElement, focusable = typeof element.focus === 'function' && element.tabIndex >= 0 && reachable(element);
             // Shadow hosts and slots own navigation scopes: positive tabindex inside
             // them is sorted locally, not ahead of the host's position in the document.
             if (node.shadowRoot || node.localName === 'slot') {
@@ -54,6 +62,12 @@ export function tabbables(root: Element, exclude?: Element): HTMLElement[] {
 }
 export function focusAvailable(node: HTMLElement | null | undefined): boolean {
     return !!node && available(node) && focusElement(node);
+}
+/** A sequential (Tab) move: also to an `aria-disabled` control, which a browser's Tab reaches too. */
+export function focusReachable(node: HTMLElement | null | undefined): boolean {
+    if (!node || !reachable(node)) return false;
+    node.focus({preventScroll: true});
+    return activeElement(node.ownerDocument) === node;
 }
 /** An open `<dialog>` in the modal state (`showModal()`); a runtime without `:modal` (jsdom) counts every open one. */
 export function modalDialog(element: Element) {

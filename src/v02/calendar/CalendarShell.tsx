@@ -16,10 +16,12 @@ const named = ({text, lang}: {text: string; lang: string}) => ({'aria-label': te
 const weekCount = ({start, end}: {start: string; end: string}) => (dateToDay(end) - dateToDay(start)) / 7;
 
 /** Private shell. T11/T12 supply the real Month/agenda through this internal seam. */
-export function CalendarShell<I, S>({input, surface, renderView, renderToolbarControls}: {
+export function CalendarShell<I, S>({input, surface, renderView, renderToolbarControls, renderModeLine}: {
     input: CalendarProps<I, S>; surface?: CalendarSurface; renderView: (controller: CalendarController<I, S>, headingId: string) => ReactNode;
     /** Package controls after the navigation group, such as the source selector (§5.6). */
     renderToolbarControls?: (controller: CalendarController<I, S>) => ReactNode;
+    /** The interaction mode line after the toolbar and its data-state banner, before the grid (#11 decision Q3); null for a viewer. */
+    renderModeLine?: (controller: CalendarController<I, S>) => ReactNode;
 }) {
     const controller = useCalendarController(input, surface), {model, rootRef, viewRef, todayRef, statusRef, politeRef, urgentRef} = controller;
     const headingId = useId(), boundaryId = useId(), statusTextId = useId();
@@ -67,6 +69,7 @@ export function CalendarShell<I, S>({input, surface, renderView, renderToolbarCo
                     <span className="nc-calendar-progress-indicator"/></div>
             </>);
     const errorStatus = () => state.dataState.status === 'error' && status(model.kind === 'contract' ? model.messages.invalidConfigurationLabel : model.message('errorLabel'), false, errorBody());
+    const modeLine = model.kind === 'data' && !model.blocking ? renderModeLine?.(controller) : null, statusSlot = model.blocking || placement === 'banner';
     const toolbar = () => {
         if (model.kind !== 'data') return null;
         const context = {...model.state, anchorDate: input.anchorDate, visibleRange: model.range};
@@ -76,7 +79,7 @@ export function CalendarShell<I, S>({input, surface, renderView, renderToolbarCo
         const todayMonth = controller.today && monthStart(controller.today);
         const todayBoundary = !!todayMonth && (todayMonth < '0001-02-01' || todayMonth > '9999-11-01') && !inRange(controller.today!, model.range);
         const todayLabel = model.message('todayLabel');
-        return <div lang={model.lang} className={classes('nc-calendar-toolbar', className(input.classNames?.toolbar, context))}>
+        return <div lang={model.lang} className={classes('nc-calendar-toolbar', className(input.classNames?.toolbar, context))} onKeyDown={event => controller.selection.onControlKey(event)}>
             <h2 id={headingId} className="nc-calendar-heading" lang={model.locale.locale} dir={model.locale.dir}>{model.format.date(model.month, 'month').text}</h2>
             <Stack direction="row">
                 <IconButton {...named(model.message('previousMonthLabel'))} isDisabled={!previous || model.blocking}
@@ -101,7 +104,9 @@ export function CalendarShell<I, S>({input, surface, renderView, renderToolbarCo
         <div ref={politeRef} className="nc-visually-hidden" role="status" aria-live="polite" aria-atomic="true"/>
         <div ref={urgentRef} className="nc-visually-hidden" role="alert" aria-atomic="true"/>
         {toolbar()}
-        {(model.blocking || placement === 'banner') && <>{loadingStatus()}{errorStatus()}</>}
+        {/* The mode line joins this slot last: without it the slot and the ids under the view stay exactly as before. A refresh
+            progress belongs to the view; this slot shows a status only as a blocking state or a banner. */}
+        {(statusSlot || !!modeLine) && <>{statusSlot && loadingStatus()}{statusSlot && errorStatus()}{modeLine}</>}
         {/* QA-08: `aria-busy` marks the stale content only (the grid and an inline agenda); the live regions of the root and
             the progress region stay outside the busy subtree. */}
         {model.kind === 'data' && !model.blocking && <div ref={viewRef} className="nc-calendar-view" lang={model.lang} data-month-heading={headingId}>

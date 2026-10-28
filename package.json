@@ -105,15 +105,12 @@
     "typescript-eslint": "^8.60.1",
     "vite": "^6.4.4",
     "vite-plugin-dts": "^5.0.2",
-    "vitest": "^3.2.1"
+    "vitest": "^5.0.5"
   },
-  "//": "overrides close dev-only advisories inside Storybook 8 and Vitest 3: the actions addon calls only uuid.v4(), and the only breaking change of tinypool 2 is dropping Node 18.",
+  "//": "the override closes a dev-only advisory inside Storybook 8: the actions addon calls only uuid.v4(), and uuid 11.1.1 closes GHSA-w5hq-g745-h8pq.",
   "overrides": {
     "@storybook/addon-actions": {
       "uuid": "11.1.1"
-    },
-    "vitest": {
-      "tinypool": "2.1.2"
     }
   },
   "keywords": [
@@ -130,5 +127,9 @@
   },
   "bugs": {
     "url": "https://github.com/Nelmad/calendar/issues"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "fsevents": false
   }
 }

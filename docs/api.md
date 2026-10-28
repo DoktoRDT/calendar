@@ -1283,7 +1283,7 @@ root itself. A `tokens` value that is one declaration value is passed through un
 <a id="messages"></a>
 ## Message catalog
 
-`CalendarMessages` has 62 keys. All of them can be overridden; the following are displayed or announced in alpha.2:
+`CalendarMessages` has 63 keys. All of them can be overridden; the following are displayed or announced in alpha.2:
 
 | Key | Signature | `en-US` | `ru-RU` |
 | --- | --- | --- | --- |
@@ -1320,16 +1320,16 @@ root itself. A `tokens` value that is one declaration value is passed through un
 catalog language, `{title}` the source or item title (the untitled fallback applies to items), isolated as bidirectional
 text.
 
-The other 34 keys are typed for the planned `0.2` API and are not displayed in alpha.2: `openAgendaLabel`,
-`selectedStateLabel`, `unavailableStateLabel`, `pendingStateLabel`, `selectDateLabel`, `selectRangeLabel`,
-`confirmSelectionLabel`, `clearSelectionLabel`, `createLabel`, `moveItemLabel`, `confirmMoveLabel`, `genericBlockedReason`,
-`selectionBoundaryReason`, `moveDstGapReason`, `moveBoundaryReason`, `moveItemChangedReason`, `moveTimeZoneChangedReason`,
-`moveItemUnavailableReason`, `rangeSelectionInstructions`, `moveInstructions`, `blockedAnnouncement`,
-`selectionStartedAnnouncement`, `selectionTargetAnnouncement`,
-`selectionCancelledAnnouncement`, `selectionCompletedAnnouncement`, `selectionClearedAnnouncement`,
-`moveStartedAnnouncement`, `moveNavigationPendingLabel`, `moveTargetAnnouncement`, `moveCancelledAnnouncement`,
-`moveNoopAnnouncement`, `movePendingAnnouncement`, `moveSucceededAnnouncement`, `moveRejectedAnnouncement`. Their exact
-signatures are in the [generated report](api/calendar.api.md).
+The other 35 keys are typed for the planned `0.2` API and are not displayed in alpha.2: `openAgendaLabel`,
+`selectedStateLabel`, `selectionDraftStateLabel`, `unavailableStateLabel`, `pendingStateLabel`, `selectDateLabel`,
+`selectRangeLabel`, `confirmSelectionLabel`, `clearSelectionLabel`, `createLabel`, `moveItemLabel`, `confirmMoveLabel`,
+`genericBlockedReason`, `selectionBoundaryReason`, `moveDstGapReason`, `moveBoundaryReason`, `moveItemChangedReason`,
+`moveTimeZoneChangedReason`, `moveItemUnavailableReason`, `rangeSelectionInstructions`, `moveInstructions`,
+`blockedAnnouncement`, `selectionStartedAnnouncement`, `selectionTargetAnnouncement`, `selectionCancelledAnnouncement`,
+`selectionCompletedAnnouncement`, `selectionClearedAnnouncement`, `moveStartedAnnouncement`,
+`moveNavigationPendingLabel`, `moveTargetAnnouncement`, `moveCancelledAnnouncement`, `moveNoopAnnouncement`,
+`movePendingAnnouncement`, `moveSucceededAnnouncement`, `moveRejectedAnnouncement`. Their exact signatures are in the
+[generated report](api/calendar.api.md).
 
 <a id="data-attributes"></a>
 ## `data-*` attributes

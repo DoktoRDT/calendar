@@ -3,7 +3,7 @@ import {createPortal} from 'react-dom';
 import {act, render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {Button as HostButton, Dialog as HostDialog, Heading as HostHeading, Modal as HostModal, ModalOverlay as HostModalOverlay} from 'react-aria-components';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import type {CalendarProps} from '../../reference.js';
 import {CalendarMonth} from '../CalendarMonth.js';
 import {dialogContainer} from '../portal.js';
@@ -17,7 +17,7 @@ const sheetInput = (): CalendarProps => ({...input(), layout: 'mobile', agendaPr
 const cellIn = (scope: ParentNode, date = '2026-03-04') => scope.querySelector<HTMLElement>(`[role=gridcell][data-date="${date}"]`)!;
 const hidden = (node: Element | null) => !!node?.closest('[aria-hidden="true"], [inert]');
 const frames = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { warn.mockRestore(); });
 

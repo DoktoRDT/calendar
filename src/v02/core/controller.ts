@@ -16,8 +16,15 @@ export function clampToMonth(date: string, month: string): string {
 export type NavigationSource = 'grid' | 'today' | 'toolbar';
 export type NavigationKind = 'date' | 'month';
 export type NavigationIntent = Readonly<{month: string; date: string; source: NavigationSource}>;
-export type NavigationState = Readonly<{month: string; date: string; intent: NavigationIntent | null}>;
-export const sameNavigation = (a: NavigationState, b: NavigationState) => a.month === b.month && a.date === b.date && a.intent === b.intent;
+/**
+ * The month that the last Previous, Next or Today requested from `onNavigate`. Unlike its focus intent, which any unrelated
+ * key, press or window blur cancels, it stays the current request until it is replaced, the month changes (accepted or
+ * not) or a blocking state commits (#11 decision Q7).
+ */
+export type NavigationRequest = Readonly<{month: string}>;
+export type NavigationState = Readonly<{month: string; date: string; intent: NavigationIntent | null; request?: NavigationRequest | null}>;
+export const sameNavigation = (a: NavigationState, b: NavigationState) => a.month === b.month && a.date === b.date && a.intent === b.intent
+    && (a.request ?? null) === (b.request ?? null);
 export type NavigationSnapshot = Readonly<{month: string; range: CalendarDateRange; blocking: boolean}>;
 export type FocusOwner = Readonly<{grid: boolean; calendar: boolean; initiator: boolean}>;
 
@@ -37,20 +44,26 @@ export function requestNavigation(state: NavigationState, snapshot: NavigationSn
     if (month === snapshot.month) {
         return {state: {...state, date, intent: null}, focus: source === 'toolbar' ? undefined : date, blocked: false} as const;
     }
-    return {state: {...state, intent: {month, date, source}}, navigate: month, blocked: false} as const;
+    return {state: {...state, intent: {month, date, source}, request: source === 'grid' ? null : {month}}, navigate: month, blocked: false} as const;
 }
-/** Blocking wins over matching acceptance, even when both arrive in one commit. */
+/**
+ * Blocking wins over matching acceptance, even when both arrive in one commit. `external`: the month changed without
+ * matching the current request, which cancels a selection draft (#11 decision Q7): there was none, it was replaced, or it
+ * was a grid request whose focus intent was cancelled. A toolbar or Today request stays current without its intent.
+ */
 export function commitNavigation(state: NavigationState, snapshot: NavigationSnapshot | null, owner: FocusOwner) {
-    if (!snapshot) return {state: {...state, intent: null}};
+    // A contract error ends the request with the intent: nothing requested before it resumes after it (#11 decision Q9).
+    if (!snapshot) return {state: {...state, intent: null, request: null}, external: false};
     const date = navigationDate(state, snapshot), changed = state.month !== snapshot.month;
     const intent = snapshot.blocking ? null : state.intent;
-    const matches = changed && intent?.month === snapshot.month;
+    const matches = changed && intent?.month === snapshot.month, requested = changed && !snapshot.blocking && state.request?.month === snapshot.month;
     const canFocus = matches && (intent.source === 'grid' ? owner.grid : intent.source === 'today' && owner.initiator);
     const target = canFocus && inRange(intent.date, snapshot.range) ? intent.date : date;
     return {
-        state: {month: snapshot.month, date: target, intent: changed || snapshot.blocking ? null : intent},
+        state: {month: snapshot.month, date: target, intent: changed || snapshot.blocking ? null : intent, request: changed || snapshot.blocking ? null : state.request ?? null},
         focus: !snapshot.blocking && (canFocus || (owner.grid && state.date !== target)) ? target : undefined,
         announce: matches && intent.source === 'toolbar' && owner.calendar && !owner.grid ? snapshot.month : undefined,
+        external: changed && !matches && !requested,
     };
 }
 
