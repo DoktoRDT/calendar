@@ -52,7 +52,8 @@ export function requestNavigation(state: NavigationState, snapshot: NavigationSn
  * was a grid request whose focus intent was cancelled. A toolbar or Today request stays current without its intent.
  */
 export function commitNavigation(state: NavigationState, snapshot: NavigationSnapshot | null, owner: FocusOwner) {
-    if (!snapshot) return {state: {...state, intent: null}, external: false};
+    // A contract error ends the request with the intent: nothing requested before it resumes after it (#11 decision Q9).
+    if (!snapshot) return {state: {...state, intent: null, request: null}, external: false};
     const date = navigationDate(state, snapshot), changed = state.month !== snapshot.month;
     const intent = snapshot.blocking ? null : state.intent;
     const matches = changed && intent?.month === snapshot.month, requested = changed && !snapshot.blocking && state.request?.month === snapshot.month;

@@ -10,7 +10,7 @@ import {Button, Icon, IconButton, Menu, MenuItem} from '../primitives/index.js';
 import {NonModalPopover} from '../primitives/NonModalPopover.js';
 import {ModalSheet} from '../primitives/ModalSheet.js';
 import {activeElement, writeLive} from './dom.js';
-import {available, containsComposed, focusAvailable, focusReachable, inertComposed, tabbables} from './focus.js';
+import {available, containsComposed, focusAvailable, focusReachable, inertComposed, reachable, tabbables} from './focus.js';
 
 const useClientLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 export type LiveEndpoints = {polite: HTMLElement | null; urgent: HTMLElement | null};
@@ -225,11 +225,12 @@ function ChildSurface({child, scope}: {child: Child; scope: OverlayScope}) {
         // §12.2: the menu sits logically right after its trigger inside the parent.
         const parent = stack.surfaceOf(child.parent), backwards = event.shiftKey;
         if (!parent) return;
-        const usable = (node: HTMLElement) => node.isConnected && containsComposed(parent, node) && available(node);
+        // A sequential move, so an aria-disabled control of the parent is a target too (#11 decision Q1).
+        const inOrder = (node: HTMLElement) => node.isConnected && containsComposed(parent, node) && reachable(node);
         const order = tabbables(parent), index = order.indexOf(child.trigger);
         // A removed trigger keeps its former logical position in the order recorded at open.
         const target = index >= 0 ? order[index + (backwards ? -1 : 1)] : backwards
-            ? child.order.slice(0, Math.max(child.index, 0)).reverse().find(usable) : child.order.slice(child.index + 1).find(usable);
+            ? child.order.slice(0, Math.max(child.index, 0)).reverse().find(inOrder) : child.order.slice(child.index + 1).find(inOrder);
         flushSync(() => stack.close(child.id, false));
         if (target) { event.preventDefault(); event.stopPropagation(); focusReachable(target); }
         // No target inside the parent: the parent's own Tab rule continues from the trigger.

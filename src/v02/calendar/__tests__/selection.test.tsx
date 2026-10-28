@@ -867,6 +867,24 @@ describe('review of PR #18', () => {
         await user.keyboard(' ');
         expect(changes(props)).toEqual([range('2026-09-10', '2026-10-13')]);
     });
+    it('a toolbar request made before a contract error does not keep a new draft after it (Q9)', async () => {
+        const user = userEvent.setup(), onNavigate = vi.fn(), props = selecting({onNavigate});
+        const view = render(tree(props));
+        await user.click(button('Select range'));
+        await keys(user, '2026-09-10', ' ');
+        await user.click(button('Next month'));
+        expect(onNavigate).toHaveBeenLastCalledWith('2026-10-01');
+        view.rerender(tree({...props, timeZone: 'Mars/Olympus'} as CalendarProps));
+        expect(screen.queryByRole('grid')).toBeNull();
+        view.rerender(tree(props));
+        await user.click(button('Select range'));
+        await keys(user, '2026-09-12', ' ');
+        expect(document.querySelector('.nc-selection-line')).not.toBeNull();
+        // October is no current request any more: its acceptance is an external month change.
+        view.rerender(tree({...props, anchorDate: '2026-10-01'} as CalendarProps));
+        expect(document.querySelector('.nc-selection-line')).toBeNull();
+        expect(changes(props)).toEqual([]);
+    });
     it('a grid month request whose focus intent was cancelled still cancels the draft when it is accepted later (Q7)', async () => {
         const user = userEvent.setup(), onNavigate = vi.fn(), props = selecting({onNavigate, anchorDate: '2026-01-01', today: '2026-01-15'});
         const view = render(<StrictMode><CalendarMonth {...props}/><button>After</button></StrictMode>);
@@ -909,14 +927,21 @@ describe('review of PR #18', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
         expect(button('Clear selection')).toHaveFocus(); expect(button('Clear selection')).toHaveAttribute('aria-disabled', 'true');
     });
-    it('Shift+Tab out of an item action menu in the popover reaches the aria-disabled Select day', async () => {
+    it.each([false, true])('Shift+Tab out of an item action menu in the popover reaches the aria-disabled Select day (trigger removed: %s)', async removed => {
         const user = userEvent.setup(), items = [{id: 'a', title: 'Alpha', data: {}, interval: {kind: 'allDay', start: '2026-09-10', end: '2026-09-11'}}];
-        render(tree(selecting({items, interactionPolicy: blockedOn('2026-09-10'), getItemActions: () => [{id: 'open', label: 'Open'}], onItemActionRequest() {}})));
+        const props = selecting({items, interactionPolicy: blockedOn('2026-09-10'), getItemActions: () => [{id: 'open', label: 'Open'}], onItemActionRequest() {}});
+        const view = render(tree(props));
         await user.click(cell('2026-09-10'));
         const dialog = screen.getByRole('dialog');
         act(() => within(dialog).getByRole('button', {name: /^Actions for/}).focus());
         await user.keyboard('{Enter}');
         expect(screen.getByRole('menu')).toBeInTheDocument();
+        if (removed) {
+            // The menu stays open with its last set after the item and its trigger are gone; the Tab fallback uses the order
+            // recorded when the menu opened.
+            view.rerender(tree({...props, items: []} as CalendarProps));
+            expect(screen.getByRole('menu')).toBeInTheDocument(); expect(within(dialog).queryByRole('button', {name: /^Actions for/})).toBeNull();
+        }
         await user.tab({shift: true});
         expect(screen.queryByRole('menu')).toBeNull();
         expect(within(dialog).getByRole('button', {name: 'Select day'})).toHaveFocus();
