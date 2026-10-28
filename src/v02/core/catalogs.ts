@@ -61,7 +61,7 @@ export function createBuiltinCatalog(lang: 'ru-RU' | 'en-US', dates: ReturnType<
         genericBlockedReason: ru ? 'Действие недоступно' : 'Action unavailable',
         navigationBoundaryReason: ru ? 'Месяц вне поддерживаемого диапазона' : 'Month is outside the supported range',
         selectionBoundaryReason: ru ? 'Диапазон выделения выходит за поддерживаемые даты' : 'Selection is outside the supported date range',
-        moveDstGapReason: (value, time) => ru ? t`Время ${userText(time)} ${date(value)} не существует в этом часовом поясе` : t`${userText(time)} on ${date(value)} does not exist in this time zone`,
+        moveDstGapReason: (value, time) => ru ? t`Время ${dates.dateText(time)} ${date(value)} не существует в этом часовом поясе` : t`${dates.dateText(time)} on ${date(value)} does not exist in this time zone`,
         moveBoundaryReason: ru ? 'Перенос выходит за поддерживаемый диапазон дат' : 'Move is outside the supported date range',
         moveItemChangedReason: ru ? 'Время события изменилось' : 'Event time has changed',
         moveTimeZoneChangedReason: ru ? 'Часовой пояс календаря изменился' : 'Calendar time zone has changed',

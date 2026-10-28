@@ -8,9 +8,11 @@ const hasText = (value: unknown): value is string => typeof value === 'string' &
 const titleKeys = new Set<keyof CalendarMessages>(['itemActionsLabel', 'moveStartedAnnouncement', 'moveNavigationPendingLabel', 'moveTargetAnnouncement',
     'moveCancelledAnnouncement', 'moveNoopAnnouncement', 'movePendingAnnouncement', 'moveSucceededAnnouncement', 'moveRejectedAnnouncement']);
 const otherTextArguments: Partial<Record<keyof CalendarMessages, readonly number[]>> = {
-    showSourceLabel: [0], hideSourceLabel: [0], blockedAnnouncement: [0], moveDstGapReason: [1],
+    showSourceLabel: [0], hideSourceLabel: [0], blockedAnnouncement: [0],
     moveTargetAnnouncement: [3], moveCancelledAnnouncement: [1], moveRejectedAnnouncement: [1],
 };
+// Date-locale text the controller formats (#9 Q1): interpolated as a date fragment, not as user text.
+const dateTextArguments: Partial<Record<keyof CalendarMessages, readonly number[]>> = {moveDstGapReason: [1]};
 export const snapshotItemTitle = (item: Pick<CalendarItem, 'title'>): string => item.title;
 
 export function createMessages(resolved: ResolvedLocale, timeZone: string, options: {messagesLocale?: string | undefined; messages?: Partial<CalendarMessages> | undefined} = {}) {
@@ -41,6 +43,10 @@ export function createMessages(resolved: ResolvedLocale, timeZone: string, optio
             for (const index of otherTextArguments[key] ?? []) {
                 const argument = values[index];
                 if (typeof argument === 'string') interpolations.push(userText(argument));
+            }
+            for (const index of dateTextArguments[key] ?? []) {
+                const argument = values[index];
+                if (typeof argument === 'string') interpolations.push(dates.dateText(argument));
             }
         } else if (typeof fallback === 'string' && typeof override === 'string') value = override;
         let fragments: readonly TextFragment[];

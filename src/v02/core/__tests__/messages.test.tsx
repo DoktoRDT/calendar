@@ -210,6 +210,51 @@ describe('date fragment direction', () => {
         expect(html).toContain('dir="ltr"'); expect(html).not.toContain('dir="rtl"');
     });
 });
+// #9 decision Q1: the wall time of moveDstGapReason is date-locale text, with seconds and milliseconds only when non-zero.
+describe('DST gap wall time', () => {
+    const wall = (hour: number, minute: number, second = 0, millisecond = 0, date = '2026-03-29') => ({date, hour, minute, second, millisecond});
+    it.each([
+        ['ru-RU', undefined, wall(2, 30), '02:30'],
+        ['en-US', undefined, wall(2, 30), '2:30 AM'],
+        ['en-US', 24, wall(2, 30), '02:30'],
+        ['en-US', undefined, wall(2, 30, 15, 250), '2:30:15.250 AM'],
+        ['en-US', 24, wall(2, 30, 15), '02:30:15'],
+        ['ru-RU', undefined, wall(0, 44, 29, 999, '1972-01-07'), '00:44:29,999'],
+    ] as const)('formats in %s (hourCycle %s)', (locale, hourCycle, value, label) => {
+        const resolved = resolveLocale({locale, hourCycle});
+        const fragment = createDateFormatting(resolved, 'Europe/Berlin').wallTime(value);
+        expect(fragment).toMatchObject({lang: locale, dir: 'ltr', kind: 'date'});
+        expect(fragment.text.replace(/\s/g, ' ')).toBe(label);
+        // The same Intl options on the synthetic UTC epoch: never a zone name or offset.
+        const h12 = resolved.hourCycle === 12, seconds = value.second !== 0 || value.millisecond !== 0;
+        expect(fragment.text).toBe(new Intl.DateTimeFormat(resolved.locale, {localeMatcher: 'lookup', calendar: 'gregory', timeZone: 'UTC',
+            hourCycle: h12 ? 'h12' : 'h23', hour: h12 ? 'numeric' : '2-digit', minute: '2-digit', ...(seconds ? {second: '2-digit'} : {}),
+            ...(value.millisecond ? {fractionalSecondDigits: 3} : {})}).format(Date.UTC(Number(value.date.slice(0, 4)), Number(value.date.slice(5, 7)) - 1,
+            Number(value.date.slice(8)), value.hour, value.minute, value.second, value.millisecond)));
+    });
+    it('interpolates the time as a date fragment of the date locale in built-in catalogs and overrides', () => {
+        const time = createDateFormatting(resolveLocale({locale: 'fr-FR'}), 'UTC').wallTime(wall(2, 30)).text;
+        const builtIn = messages('fr-FR').message('moveDstGapReason', '2026-03-29', time);
+        expect(builtIn.lang).toBe('en-US');
+        expect(builtIn.fragments.filter(part => part.kind !== 'message').map(part => [part.text, part.kind, part.lang])).toEqual([
+            [time, 'date', 'fr-FR'], [createDateFormatting(resolveLocale({locale: 'fr-FR'}), 'UTC').date('2026-03-29', 'short').text, 'date', 'fr-FR'],
+        ]);
+        const override = messages('fr-FR', {messagesLocale: 'de-DE', messages: {moveDstGapReason: (_date, value) => `Lücke um ${value}`}})
+            .message('moveDstGapReason', '2026-03-29', time);
+        expect(override.fragments.map(part => [part.text, part.kind, part.lang])).toEqual([['Lücke um ', 'message', 'de-DE'], [time, 'date', 'fr-FR']]);
+        expect(renderToStaticMarkup(<LocalizedText value={override}/>)).toContain(`lang="fr-FR" dir="ltr">${time}`);
+        const russian = messages('ru-RU').message('moveDstGapReason', '2026-03-29', '02:30');
+        expect(russian.lang).toBe('ru-RU');
+        expect(russian.fragments.filter(part => part.kind !== 'message').map(part => [part.text, part.kind, part.lang, part.dir])).toEqual([
+            ['02:30', 'date', 'ru-RU', 'ltr'], [createDateFormatting(resolveLocale({locale: 'ru-RU'}), 'UTC').date('2026-03-29', 'short').text, 'date', 'ru-RU', 'ltr'],
+        ]);
+    });
+    it('keeps each precision apart on one formatting instance, as a Calendar keeps one', () => {
+        const format = createDateFormatting(resolveLocale({locale: 'en-US'}), 'UTC');
+        const labels = [wall(2, 30, 15, 250), wall(2, 30, 15), wall(2, 30), wall(2, 30, 0, 5)].map(value => format.wallTime(value).text.replace(/\s/g, ' '));
+        expect(labels).toEqual(['2:30:15.250 AM', '2:30:15 AM', '2:30 AM', '2:30:00.005 AM']);
+    });
+});
 describe('contract-error locale chain', () => {
     it.each(['rus', 'rus-RU', 'RUS'])('uses one catalog for the shell and messages with the %s alias', locale => {
         for (const messagesLocale of [undefined, 'bad_tag']) {

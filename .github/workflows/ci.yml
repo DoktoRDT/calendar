@@ -49,7 +49,7 @@ jobs:
 
       - run: npm test
 
-      - run: npm test -- src/v02/core/__tests__/date.test.ts src/v02/core/__tests__/locale.test.ts src/v02/core/__tests__/messages.test.tsx
+      - run: npm test -- src/v02/core/__tests__/date.test.ts src/v02/core/__tests__/locale.test.ts src/v02/core/__tests__/messages.test.tsx src/v02/core/__tests__/move.test.ts
         env:
           TZ: Africa/Monrovia
           LANG: de_DE.UTF-8
