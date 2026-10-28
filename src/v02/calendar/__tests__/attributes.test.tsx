@@ -2,7 +2,7 @@ import {act, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {createRoot, hydrateRoot} from 'react-dom/client';
 import {renderToString} from 'react-dom/server';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, neutralTheme, type CalendarDataAttribute, type CalendarItem, type CalendarProps} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
 import {CalendarMonth} from '../CalendarMonth.js';
@@ -45,7 +45,7 @@ const props = (overrides: Partial<CalendarProps> = {}): CalendarProps => ({items
     sources: [{id: 'work', title: 'Work'}, {id: 'home', title: 'Home'}], visibleSourceIds: ['work', 'home'], onVisibleSourceIdsChange() {},
     anchorDate: '2026-03-01', today: '2026-03-04', timeZone: 'UTC', locale: 'en-US', layout: 'desktop', onNavigate() {}, ...overrides} as CalendarProps);
 const cell = (date: string, scope: ParentNode = document) => scope.querySelector<HTMLElement>(`[role=gridcell][data-date="${date}"]`)!;
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
 afterEach(() => { vi.restoreAllMocks(); });
 

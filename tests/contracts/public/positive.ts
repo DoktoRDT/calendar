@@ -25,6 +25,8 @@ const tokens: CalendarThemeTokens = {color: {surface: '#fff', accent: 'rebeccapu
     radii: {md: '8px'}, components: {itemBackground: 'Canvas'}};
 const variable: CalendarCSSVariable = '--nelmad-calendar-color-text';
 const messages: Partial<CalendarMessages> = {todayLabel: 'Today', agendaHeading: date => `Events: ${date}`, itemCountLabel: (date, count) => `${date}: ${count}`};
+// A partial override may name the selection draft state label (#14).
+export const draftLabel: Partial<CalendarMessages> = {selectionDraftStateLabel: 'Draft'};
 const theme: CalendarTheme = classicTheme;
 const weekday: CalendarWeekday = 'monday';
 
