@@ -145,6 +145,36 @@
     padding: var(--nelmad-calendar-spacing-xs) var(--nelmad-calendar-spacing-sm);
 }
 
+/* #11 decision Q3: the mode line sits in the flow between the toolbar (and its banner) and the grid, and wraps at 320 px.
+   Range mode reserves the height of its Cancel button from the start; the calendar never lets the line shrink while
+   it stays in one mode, so a reason that appears or clears moves neither the controls nor the grid. */
+:where(.nc-theme) .nc-selection-line {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nelmad-calendar-spacing-sm);
+    min-inline-size: 0;
+    margin-block-end: var(--nelmad-calendar-spacing-sm);
+}
+
+:where(.nc-theme) .nc-selection-line[data-mode="range"] { min-block-size: 44px; }
+
+:where(.nc-theme) .nc-selection-reason { overflow-wrap: anywhere; }
+
+:where(.nc-theme) .nc-selection-line > .nc-selection-reason {
+    flex: 1 1 0%;
+    min-inline-size: 0;
+}
+
+:where(.nc-theme) .nc-day-list-select {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--nelmad-calendar-spacing-sm);
+    margin-block-end: 8px;
+}
+
 /* A refresh in progress has no layout effect: a 3 px bar over the top border of the grid area (its bottom edge is the
    grid's top border, above the weekday row), on the straight part of that border. It covers no text, cell or control and
    takes no pointer input; its region holds no consumer content (a custom body is a banner). */
@@ -294,6 +324,11 @@
 /* §10.3.3: the selected-day token colors selected date cells only, never items or controls (QA-15). */
 :where(.nc-theme) .nc-day[data-selected] { background-color: var(--nelmad-calendar-components-selected-day-background); }
 
+/* #11: a selection draft tints its dates over any accepted selection. */
+:where(.nc-theme) .nc-day[data-selection-draft] {
+    background-image: linear-gradient(color-mix(in srgb, var(--nelmad-calendar-color-accent) 18%, transparent), color-mix(in srgb, var(--nelmad-calendar-color-accent) 18%, transparent));
+}
+
 :where(.nc-theme) .nc-day:focus-visible { outline: none; }
 
 /* QA-06: the focus ring is drawn above the items of its cell without lifting the cell itself, so a press on a chip
@@ -334,6 +369,14 @@
     text-decoration: underline;
     text-underline-offset: 4px;
 }
+
+/* #11: a date the selection policy blocks stays viewable; only its number is muted and struck through. */
+:where(.nc-theme) .nc-day[data-selection-unavailable] .nc-day-header {
+    color: var(--nelmad-calendar-color-muted);
+    text-decoration-line: line-through;
+}
+
+:where(.nc-theme) .nc-day[data-agenda-date][data-selection-unavailable] .nc-day-header { text-decoration-line: underline line-through; }
 
 :where(.nc-theme) .nc-month-probes {
     position: absolute;
@@ -733,6 +776,7 @@
 }
 
 :where(.nc-theme) .nc-button[data-disabled],
+:where(.nc-theme) .nc-button[aria-disabled="true"],
 :where(.nc-theme) .nc-checkbox[data-disabled],
 :where(.nc-theme) .nc-menu-item[data-disabled] {
     opacity: 0.55;
@@ -1061,6 +1105,14 @@
     :where(.nc-theme) .nc-month-item[data-continues-before] { border-inline-start-style: dashed; }
     :where(.nc-theme) .nc-month-item[data-continues-after] { border-inline-end-style: dashed; }
     :where(.nc-theme) .nc-day[data-outside-month] .nc-day-header { color: GrayText; }
+
+    /* A gradient tint does not survive forced colors: a draft keeps a system-colored outline inside its cell. */
+    :where(.nc-theme) .nc-day[data-selection-draft] {
+        outline: 2px dashed Highlight;
+        outline-offset: -3px;
+    }
+
+    :where(.nc-theme) .nc-day[data-selection-unavailable] .nc-day-header { color: GrayText; }
 
     /* Accent markers stay visible as system-colored borders; consumer colors do not survive forced colors (§10.3.3). */
     :where(.nc-theme) .nc-item-accent,

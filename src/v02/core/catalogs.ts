@@ -40,6 +40,7 @@ export function createBuiltinCatalog(lang: 'ru-RU' | 'en-US', dates: ReturnType<
         moreItemsLabel: (value, n) => ru ? t`${date(value)}: ещё ${count(n)}` : t`${date(value)}: ${count(n)} hidden`,
         todayStateLabel: ru ? 'Сегодня' : 'Today',
         selectedStateLabel: ru ? 'Выбрано' : 'Selected',
+        selectionDraftStateLabel: ru ? 'В выделении' : 'In selection',
         viewedDateStateLabel: ru ? 'Открытый день' : 'Viewed day',
         unavailableStateLabel: ru ? 'Недоступно' : 'Unavailable',
         pendingStateLabel: ru ? 'Перенос ожидает подтверждения' : 'Move pending',

@@ -1294,7 +1294,7 @@ density не принимают проценты. Chips, bars и строки п
 <a id="messages"></a>
 ## Каталог сообщений
 
-В `CalendarMessages` 62 ключа. Переопределить можно любой; в alpha.2 отображаются или объявляются следующие:
+В `CalendarMessages` 63 ключа. Переопределить можно любой; в alpha.2 отображаются или объявляются следующие:
 
 | Ключ | Сигнатура | `en-US` | `ru-RU` |
 | --- | --- | --- | --- |
@@ -1331,16 +1331,16 @@ density не принимают проценты. Chips, bars и строки п
 множественного числа языка каталога, `{title}` — название source или item (для item действует fallback «Без названия»),
 изолированное как двунаправленный текст.
 
-Остальные 34 ключа типизированы для запланированного API `0.2` и в alpha.2 не отображаются: `openAgendaLabel`,
-`selectedStateLabel`, `unavailableStateLabel`, `pendingStateLabel`, `selectDateLabel`, `selectRangeLabel`,
-`confirmSelectionLabel`, `clearSelectionLabel`, `createLabel`, `moveItemLabel`, `confirmMoveLabel`, `genericBlockedReason`,
-`selectionBoundaryReason`, `moveDstGapReason`, `moveBoundaryReason`, `moveItemChangedReason`, `moveTimeZoneChangedReason`,
-`moveItemUnavailableReason`, `rangeSelectionInstructions`, `moveInstructions`, `blockedAnnouncement`,
-`selectionStartedAnnouncement`, `selectionTargetAnnouncement`,
-`selectionCancelledAnnouncement`, `selectionCompletedAnnouncement`, `selectionClearedAnnouncement`,
-`moveStartedAnnouncement`, `moveNavigationPendingLabel`, `moveTargetAnnouncement`, `moveCancelledAnnouncement`,
-`moveNoopAnnouncement`, `movePendingAnnouncement`, `moveSucceededAnnouncement`, `moveRejectedAnnouncement`. Их точные
-сигнатуры — в [сгенерированном отчёте](api/calendar.api.md).
+Остальные 35 ключей типизированы для запланированного API `0.2` и в alpha.2 не отображаются: `openAgendaLabel`,
+`selectedStateLabel`, `selectionDraftStateLabel`, `unavailableStateLabel`, `pendingStateLabel`, `selectDateLabel`,
+`selectRangeLabel`, `confirmSelectionLabel`, `clearSelectionLabel`, `createLabel`, `moveItemLabel`, `confirmMoveLabel`,
+`genericBlockedReason`, `selectionBoundaryReason`, `moveDstGapReason`, `moveBoundaryReason`, `moveItemChangedReason`,
+`moveTimeZoneChangedReason`, `moveItemUnavailableReason`, `rangeSelectionInstructions`, `moveInstructions`,
+`blockedAnnouncement`, `selectionStartedAnnouncement`, `selectionTargetAnnouncement`, `selectionCancelledAnnouncement`,
+`selectionCompletedAnnouncement`, `selectionClearedAnnouncement`, `moveStartedAnnouncement`,
+`moveNavigationPendingLabel`, `moveTargetAnnouncement`, `moveCancelledAnnouncement`, `moveNoopAnnouncement`,
+`movePendingAnnouncement`, `moveSucceededAnnouncement`, `moveRejectedAnnouncement`. Их точные сигнатуры — в
+[сгенерированном отчёте](api/calendar.api.md).
 
 <a id="data-attributes"></a>
 ## Атрибуты `data-*`

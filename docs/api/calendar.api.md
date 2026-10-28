@@ -373,6 +373,7 @@ export type CalendarMessages = {
     moreItemsLabel: (date: ISODate, count: number) => string;
     todayStateLabel: string;
     selectedStateLabel: string;
+    selectionDraftStateLabel: string;
     viewedDateStateLabel: string;
     unavailableStateLabel: string;
     pendingStateLabel: string;

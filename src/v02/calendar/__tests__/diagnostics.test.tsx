@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {act, render, screen} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, type CalendarProps} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
 import type {CalendarModel} from '../model.js';
@@ -10,7 +10,7 @@ import type {CalendarModel} from '../model.js';
 const items = [{id: 'a', title: 'Alpha', data: {}, interval: {kind: 'allDay' as const, start: '2026-09-03', end: '2026-09-04'}}];
 const input = (): CalendarProps => ({items, timeZone: 'UTC', locale: 'en-US', today: '2026-09-03', anchorDate: '2026-09-01', layout: 'desktop', onNavigate() {}});
 const Untyped = Calendar as unknown as (props: Record<string, unknown>) => ReturnType<typeof Calendar>;
-let warn: ReturnType<typeof vi.spyOn>;
+let warn: MockInstance<typeof console.warn>;
 const warnings = () => warn.mock.calls.map(([message]) => String(message));
 const cell = (date: string) => screen.getAllByRole('gridcell').find(node => node.dataset.date === date)!;
 beforeEach(() => { resetSurfaceWarnings(); warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); });

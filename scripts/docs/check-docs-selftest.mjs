@@ -73,7 +73,7 @@ const cases = [
     // Review 2026-10-09-1: the displayed message table and the accepted time zone count.
     {name: 'rendered message missing from the displayed table', expect: ['api-coverage', 'displayed-messages'],
         edits: [replace('docs/api.md', '| `cancelLabel` | `string` | Cancel | Отмена |\n', '')]},
-    {name: 'displayed message counted as not displayed', expect: ['displayed-messages'], edits: [replace('docs/api.ru.md', 'Остальные 34 ключа', 'Остальные 39 ключей')]},
+    {name: 'displayed message counted as not displayed', expect: ['displayed-messages'], edits: [replace('docs/api.ru.md', 'Остальные 35 ключей', 'Остальные 39 ключей')]},
     {name: 'UTC added to the time zone count', expect: ['time-zone-count'],
         edits: [replace('README.md', "accepted list: 445 primary identifiers of tzdb 2026c,\n  `UTC` included,", "accepted list: `UTC` plus 445 primary identifiers of\n  tzdb 2026c,")]},
     {name: 'broken anchor link', expect: ['relative-links'], edits: [replace('README.md', '(docs/api.md#tokens)', '(docs/api.md#token)')]},

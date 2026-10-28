@@ -1,9 +1,15 @@
 import {
     Calendar,
-    type CalendarAgendaControlProps, type CalendarAgendaPresentation, type CalendarDataState, type CalendarInterval, type CalendarLayout, type CalendarProps,
+    type CalendarAgendaControlProps, type CalendarAgendaPresentation, type CalendarDataState, type CalendarInterval, type CalendarLayout, type CalendarMessages,
+    type CalendarProps,
     type CalendarTheme,
 } from '@nelmad/calendar';
 import {base} from './positive.js';
+
+// #14: a complete CalendarMessages object must include the selection draft state label.
+declare const messagesWithoutDraftLabel: Omit<CalendarMessages, 'selectionDraftStateLabel'>;
+// @ts-expect-error selectionDraftStateLabel is required in a complete catalog.
+export const completeMessages: CalendarMessages = messagesWithoutDraftLabel;
 
 // Props outside the alpha.2 working slice are typed optional never, not silent no-ops.
 // @ts-expect-error selection is not available in alpha.2.
