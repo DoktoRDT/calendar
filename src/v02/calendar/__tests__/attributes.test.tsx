@@ -5,6 +5,7 @@ import {renderToString} from 'react-dom/server';
 import {afterEach, beforeEach, describe, expect, it, vi, type MockInstance} from 'vitest';
 import {Calendar, neutralTheme, type CalendarDataAttribute, type CalendarItem, type CalendarProps} from '../../../index.js';
 import {resetSurfaceWarnings} from '../../surface.js';
+import {CalendarMonth} from '../CalendarMonth.js';
 
 // §5.7 stable data-* table (R60): each attribute only on its normative element, with its exact literal or boolean presence.
 const stable: readonly CalendarDataAttribute[] = ['data-theme', 'data-layout', 'data-density', 'data-color-scheme', 'data-dir', 'data-status', 'data-loading-phase',
@@ -93,6 +94,33 @@ describe('stable data-* attributes (§5.7, R60)', () => {
         expect([...document.querySelectorAll('.nc-checkbox')].every(node => !node.hasAttribute('data-selected'))).toBe(true);
         audit();
         expect(document.querySelector('section.nc-day-list')).toHaveAttribute('data-presentation', 'inline');
+    });
+    it('keep the table through CalendarMonth with selection enabled, range mode active and a draft shown (#11)', async () => {
+        const user = userEvent.setup();
+        const input = (overrides: Partial<CalendarProps> = {}) => ({...props(), selection: {start: '2026-03-04', end: '2026-03-06'}, onSelectionChange() {}, onCreateRequest() {},
+            interactionPolicy: {canSelectDate: (date: string) => date === '2026-03-12' ? {allowed: false, reason: 'Closed'} : true},
+            getItemActions: () => [{id: 'open', label: 'Open'}], onItemActionRequest() {}, ...overrides}) as unknown as CalendarProps;
+        const view = render(<CalendarMonth {...input()}/>);
+        act(() => cell('2026-03-04').focus()); await user.keyboard('{Enter}');
+        expect(screen.getByRole('button', {name: 'Select day'})).not.toHaveAttribute('data-selected');
+        await user.click(screen.getByRole('button', {name: 'Select range'}));
+        await user.keyboard(' {ArrowRight}{ArrowDown}');
+        const found = audit();
+        for (const entry of ['cell:data-selected', 'cell:data-selection-draft', 'cell:data-selection-unavailable']) expect(found.has(entry), entry).toBe(true);
+        for (const name of ['Select range', 'Clear selection', 'Create event', 'Cancel']) expect(screen.getByRole('button', {name})).not.toHaveAttribute('data-selected');
+        await user.click(screen.getByRole('button', {name: 'Calendars'}));
+        audit();
+        view.unmount();
+        // Mobile: the inline agenda with Select day, and a sheet presentation.
+        const mobile = render(<CalendarMonth {...input({layout: 'mobile'})}/>);
+        await user.click(screen.getByRole('button', {name: 'Select range'}));
+        await user.keyboard(' {ArrowRight}');
+        expect(audit().has('item:data-selected')).toBe(true);
+        mobile.rerender(<CalendarMonth {...input({layout: 'mobile', agendaPresentation: 'overlay'})}/>);
+        await user.keyboard('{Escape}');
+        act(() => cell('2026-03-04').focus()); await user.keyboard('{Enter}');
+        expect(screen.getByRole('dialog')).toHaveAttribute('data-presentation', 'sheet');
+        audit();
     });
     it('two themes and their portals never mix scoped values', async () => {
         const user = userEvent.setup();

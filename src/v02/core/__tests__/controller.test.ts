@@ -29,6 +29,29 @@ describe('navigation transition kernel', () => {
         expect(stale.state.intent).toBeNull(); expect(stale.focus).toBeUndefined(); expect(stale.announce).toBeUndefined();
         expect(commitNavigation(first, snapshot('2026-03-01'), grid).focus).toBe('2026-03-31');
     });
+    it('reports a month change that matches no current request as external (#11 decision Q7)', () => {
+        const owner = {grid: false, calendar: true, initiator: false};
+        for (const source of ['grid', 'today', 'toolbar'] as const) {
+            const requested = requestNavigation(january, snapshot(january.month), '2026-02-14', source).state;
+            expect(commitNavigation(requested, snapshot('2026-02-01'), owner).external).toBe(false);
+            // A cancelled focus intent (Tab, an unrelated key or press, a window blur): a grid request is no longer current,
+            // a toolbar or Today request still is.
+            expect(commitNavigation({...requested, intent: null}, snapshot('2026-02-01'), owner).external).toBe(source === 'grid');
+            // A replaced request, and another month.
+            expect(commitNavigation(requested, snapshot('2026-03-01'), owner).external).toBe(true);
+            const replaced = requestNavigation({...requested, intent: null}, snapshot(january.month), '2026-03-01', 'grid').state;
+            expect(commitNavigation({...replaced, intent: null}, snapshot('2026-02-01'), owner).external).toBe(true);
+        }
+        // The request ends with its acceptance and with a blocking state.
+        const toolbar = requestNavigation(january, snapshot(january.month), '2026-02-01', 'toolbar').state;
+        expect(commitNavigation(toolbar, snapshot('2026-02-01'), owner).state.request).toBeNull();
+        expect(commitNavigation(toolbar, snapshot(january.month, true), owner).state.request).toBeNull();
+        // A contract error (no snapshot) ends it too.
+        expect(commitNavigation(toolbar, null, owner).state.request).toBeNull();
+        expect(commitNavigation({...toolbar, intent: null}, snapshot('2026-02-01', true), owner).external).toBe(true);
+        expect(commitNavigation(january, snapshot(january.month), owner).external).toBe(false);
+        expect(commitNavigation(january, null, owner).external).toBe(false);
+    });
     it('gates Today on the initiator and toolbar announcement on calendar focus', () => {
         const today = requestNavigation(january, snapshot(january.month), '2026-02-14', 'today').state;
         expect(commitNavigation(today, snapshot('2026-02-01'), {grid: false, calendar: true, initiator: true}).focus).toBe('2026-02-14');
