@@ -296,11 +296,12 @@ try {
         });
     }
 } finally { await browser.close(); }
-const paths = ['src/v02/core/selection.ts', 'src/v02/core/policy.ts', 'src/v02/calendar/useSelection.ts', 'src/v02/calendar/SelectionControls.tsx', 'src/v02/calendar/MonthView.tsx',
-    'src/v02/calendar/CalendarMonth.tsx', 'src/v02/calendar/CalendarShell.tsx', 'src/v02/styles.css', 'scripts/implementation/selection-entry.tsx', 'scripts/implementation/selection-probe.mjs'];
+const paths = ['src/v02/core/selection.ts', 'src/v02/core/policy.ts', 'src/v02/core/controller.ts', 'src/v02/calendar/useSelection.ts', 'src/v02/calendar/SelectionControls.tsx',
+    'src/v02/calendar/MonthView.tsx', 'src/v02/calendar/CalendarMonth.tsx', 'src/v02/calendar/CalendarShell.tsx', 'src/v02/calendar/useCalendarController.ts',
+    'src/v02/calendar/focus.ts', 'src/v02/calendar/modality.ts', 'src/v02/calendar/overlays.tsx', 'src/v02/calendar/SourceSelector.tsx', 'src/v02/styles.css', 'scripts/implementation/selection-entry.tsx', 'scripts/implementation/selection-probe.mjs'];
 const report = {capturedAt: new Date().toISOString(), outcome: !only && checks.every(entry => entry.outcome === 'pass') && !errors.length ? 'pass' : 'fail', filter: only ? String(only) : null,
     node: process.version, browser: version, checks, errors,
-    scope: '#11 desktop drag selection in Chrome: hit-testing by date cell boxes in LTR and RTL, the 4 CSS px threshold over another cell, pointer capture and its loss, Escape and window blur, the suppressed click, a blocked drop kept as range mode, releases over item segments, touch and mobile without drag, focus kept on an accepted Clear, and the mode line at 320 px. Not physical touch or AT qualification.',
+    scope: '#11 desktop drag selection in Chrome: hit-testing by date cell boxes in LTR and RTL, the 4 CSS px threshold over another cell, pointer capture and its loss, Escape and window blur, the suppressed click, a blocked drop kept as range mode, releases over item segments, touch and mobile without drag, focus kept on an accepted Clear, the mode line at 320 px, a delayed toolbar month acceptance after Tab or a window blur, and Tab to the aria-disabled Select day in a sheet and a popover. Not physical touch or AT qualification.',
     sourceHashes: Object.fromEntries(paths.map(path => [path, createHash('sha256').update(readFileSync(resolve(root, path))).digest('hex')]))};
 writeFileSync(resolve(output, 'browser.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(`Selection: ${checks.filter(entry => entry.outcome === 'pass').length}/${checks.length}; ${errors.length} page errors; ${output}`);

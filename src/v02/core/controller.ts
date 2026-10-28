@@ -18,7 +18,8 @@ export type NavigationKind = 'date' | 'month';
 export type NavigationIntent = Readonly<{month: string; date: string; source: NavigationSource}>;
 /**
  * The month that the last Previous, Next or Today requested from `onNavigate`. Unlike its focus intent, which any unrelated
- * key, press or window blur cancels, it stays the current request until it is accepted or replaced (#11 decision Q7).
+ * key, press or window blur cancels, it stays the current request until it is replaced, the month changes (accepted or
+ * not) or a blocking state commits (#11 decision Q7).
  */
 export type NavigationRequest = Readonly<{month: string}>;
 export type NavigationState = Readonly<{month: string; date: string; intent: NavigationIntent | null; request?: NavigationRequest | null}>;

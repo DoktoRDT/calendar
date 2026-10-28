@@ -823,6 +823,7 @@ describe('review of PR #18', () => {
         await keys(user, '2026-09-03', ' {ArrowRight}');
         expect(drafted()).toEqual(['2026-09-03', '2026-09-04']);
         expect(cell('2026-09-04')).toHaveAccessibleDescription(/In selection/);
+        for (const date of ['2026-09-03', '2026-09-04']) expect(document.getElementById(cell(date).getAttribute('aria-describedby')!)!.textContent!.split('In selection')).toHaveLength(2);
         expect(cell('2026-09-04')).toHaveAttribute('aria-selected', 'false');
         // Completion.
         await user.keyboard(' ');
@@ -898,6 +899,27 @@ describe('review of PR #18', () => {
         else expect(screen.queryByRole('dialog')).toBeNull(); // Past the last control Tab leaves and closes the popover.
         await user.tab({shift: true});
         if (label.includes('sheet')) expect(select).toHaveFocus();
+    });
+    it('Shift+Tab out of an empty agenda popover reaches the aria-disabled Clear selection', async () => {
+        const user = userEvent.setup();
+        render(tree(selecting()));
+        await user.click(cell('2026-09-10'));
+        expect(within(screen.getByRole('dialog')).getByRole('button', {name: 'Close day agenda'})).toHaveFocus();
+        await user.tab({shift: true});
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(button('Clear selection')).toHaveFocus(); expect(button('Clear selection')).toHaveAttribute('aria-disabled', 'true');
+    });
+    it('Shift+Tab out of an item action menu in the popover reaches the aria-disabled Select day', async () => {
+        const user = userEvent.setup(), items = [{id: 'a', title: 'Alpha', data: {}, interval: {kind: 'allDay', start: '2026-09-10', end: '2026-09-11'}}];
+        render(tree(selecting({items, interactionPolicy: blockedOn('2026-09-10'), getItemActions: () => [{id: 'open', label: 'Open'}], onItemActionRequest() {}})));
+        await user.click(cell('2026-09-10'));
+        const dialog = screen.getByRole('dialog');
+        act(() => within(dialog).getByRole('button', {name: /^Actions for/}).focus());
+        await user.keyboard('{Enter}');
+        expect(screen.getByRole('menu')).toBeInTheDocument();
+        await user.tab({shift: true});
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(within(dialog).getByRole('button', {name: 'Select day'})).toHaveFocus();
     });
     it('Shift+Tab out of the open source menu reaches an aria-disabled toolbar command before its trigger', async () => {
         const user = userEvent.setup(), props = selecting({onCreateRequest() {}, sources: [{id: 'w', title: 'Work'}, {id: 'h', title: 'Home'}], visibleSourceIds: ['w', 'h'],
