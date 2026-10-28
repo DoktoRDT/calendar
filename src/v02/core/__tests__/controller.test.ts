@@ -34,10 +34,19 @@ describe('navigation transition kernel', () => {
         for (const source of ['grid', 'today', 'toolbar'] as const) {
             const requested = requestNavigation(january, snapshot(january.month), '2026-02-14', source).state;
             expect(commitNavigation(requested, snapshot('2026-02-01'), owner).external).toBe(false);
-            // A cancelled intent (Tab away, an unrelated key or press) and a replaced one make a later acceptance external.
-            expect(commitNavigation({...requested, intent: null}, snapshot('2026-02-01'), owner).external).toBe(true);
+            // A cancelled focus intent (Tab, an unrelated key or press, a window blur): a grid request is no longer current,
+            // a toolbar or Today request still is.
+            expect(commitNavigation({...requested, intent: null}, snapshot('2026-02-01'), owner).external).toBe(source === 'grid');
+            // A replaced request, and another month.
             expect(commitNavigation(requested, snapshot('2026-03-01'), owner).external).toBe(true);
+            const replaced = requestNavigation({...requested, intent: null}, snapshot(january.month), '2026-03-01', 'grid').state;
+            expect(commitNavigation({...replaced, intent: null}, snapshot('2026-02-01'), owner).external).toBe(true);
         }
+        // The request ends with its acceptance and with a blocking state.
+        const toolbar = requestNavigation(january, snapshot(january.month), '2026-02-01', 'toolbar').state;
+        expect(commitNavigation(toolbar, snapshot('2026-02-01'), owner).state.request).toBeNull();
+        expect(commitNavigation(toolbar, snapshot(january.month, true), owner).state.request).toBeNull();
+        expect(commitNavigation({...toolbar, intent: null}, snapshot('2026-02-01', true), owner).external).toBe(true);
         expect(commitNavigation(january, snapshot(january.month), owner).external).toBe(false);
         expect(commitNavigation(january, null, owner).external).toBe(false);
     });

@@ -307,6 +307,7 @@ check('examples-current-slice', fail => {
 // from the message calls of the SDK sources; a key rendered only for an API outside the prerelease is named here.
 const laterOnlyMessages = {
     selectedStateLabel: 'rendered only for an accepted selection (beta.1)',
+    selectionDraftStateLabel: 'the state of a date cell inside a selection draft (beta.1)',
     selectDateLabel: 'the agenda Select day command, only with the selection pair (beta.1)',
     selectRangeLabel: 'the toolbar Select range command, only with the selection pair (beta.1)',
     clearSelectionLabel: 'the toolbar Clear selection command, only with the selection pair (beta.1)',

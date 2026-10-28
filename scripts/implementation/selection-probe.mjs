@@ -259,6 +259,42 @@ try {
             return {before, blocked, cleared};
         } finally { await context.close(); }
     });
+    for (const interruption of ['Tab back into the grid', 'a window blur']) await check(`a delayed toolbar acceptance after ${interruption} keeps the draft; the endpoint follows the clamped focus`, async () => {
+        const {page, context} = await setup({accept: false});
+        try {
+            await page.getByRole('button', {name: 'Select range'}).click(); await settle(page);
+            await cell(page, '2026-09-10').focus(); await page.keyboard.press(' '); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await settle(page);
+            await page.getByRole('button', {name: 'Next month'}).click(); await settle(page);
+            const intoGrid = async () => { for (let i = 0; i < 12 && !(await page.evaluate(() => document.activeElement?.matches('[role=gridcell]'))); i++) await page.keyboard.press('Tab'); };
+            if (interruption.startsWith('Tab')) await intoGrid(); else await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+            await settle(page);
+            await page.evaluate(() => window.fixture.patch({anchorDate: '2026-10-01'})); await settle(page);
+            assert.equal(await page.locator('.nc-selection-line').count(), 1);
+            if (!interruption.startsWith('Tab')) {
+                assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Next month');
+                await intoGrid(); await settle(page);
+            }
+            assert.equal(await focused(page), '2026-10-12');
+            await page.keyboard.press(' '); await settle(page);
+            assert.deepEqual((await events(page)).filter(event => event.type === 'selection'), [range('2026-09-10', '2026-10-13')]);
+        } finally { await context.close(); }
+    });
+    for (const [label, options, viewport] of [['a modal sheet', {layout: 'mobile', agendaPresentation: 'overlay'}, {width: 400, height: 800}], ['a popover', {layout: 'desktop'}, undefined]]) {
+        await check(`Tab reaches the aria-disabled Select day of a blocked empty day in ${label}`, async () => {
+            const {page, context} = await setup({...options, blocked: ['2026-09-10']}, viewport);
+            try {
+                const at = await point(page, '2026-09-10');
+                await page.mouse.click(at.x, at.y); await settle(page);
+                const select = page.getByRole('button', {name: 'Select day'});
+                assert.equal(await select.getAttribute('aria-disabled'), 'true');
+                const sheet = label.includes('sheet'), order = [];
+                for (let i = 0; i < (sheet ? 4 : 2); i++) { await page.keyboard.press('Tab'); await settle(page); order.push(await focused(page)); }
+                if (sheet) assert.deepEqual(order.map(entry => entry?.trim()), ['', 'Select day', '', 'Select day'], JSON.stringify(order));
+                else { assert.equal(order[0]?.trim(), 'Select day', JSON.stringify(order)); assert.equal(await page.locator('.nc-day-list').count(), 0); }
+                return {order};
+            } finally { await context.close(); }
+        });
+    }
 } finally { await browser.close(); }
 const paths = ['src/v02/core/selection.ts', 'src/v02/core/policy.ts', 'src/v02/calendar/useSelection.ts', 'src/v02/calendar/SelectionControls.tsx', 'src/v02/calendar/MonthView.tsx',
     'src/v02/calendar/CalendarMonth.tsx', 'src/v02/calendar/CalendarShell.tsx', 'src/v02/styles.css', 'scripts/implementation/selection-entry.tsx', 'scripts/implementation/selection-probe.mjs'];

@@ -810,3 +810,103 @@ describe('several transitions in one commit are spoken together', () => {
         expect(live.read()).toEqual(['polite: Selected range: Sep 3, 2026 Range: Sep 10, 2026 – Sep 11, 2026. Unavailable']);
     });
 });
+
+describe('review of PR #18', () => {
+    it('describes every draft cell, the endpoint included, as in selection; the label goes after completion and cancellation (Q4)', async () => {
+        const user = userEvent.setup(), props = selecting();
+        render(tree(props));
+        const drafted = () => screen.getAllByRole('gridcell').filter(node => /In selection/.test(node.getAttribute('aria-describedby') ? document.getElementById(node.getAttribute('aria-describedby')!)!.textContent! : ''))
+            .map(node => node.dataset.date);
+        await user.click(button('Select range'));
+        // Before an anchor there is no draft range.
+        expect(drafted()).toEqual([]);
+        await keys(user, '2026-09-03', ' {ArrowRight}');
+        expect(drafted()).toEqual(['2026-09-03', '2026-09-04']);
+        expect(cell('2026-09-04')).toHaveAccessibleDescription(/In selection/);
+        expect(cell('2026-09-04')).toHaveAttribute('aria-selected', 'false');
+        // Completion.
+        await user.keyboard(' ');
+        expect(drafted()).toEqual([]);
+        // Cancellation.
+        await user.click(button('Select range'));
+        await keys(user, '2026-09-10', ' {ArrowLeft}');
+        expect(drafted()).toEqual(['2026-09-09', '2026-09-10']);
+        await user.keyboard('{Escape}');
+        expect(drafted()).toEqual([]);
+        expect(changes(props)).toEqual([range('2026-09-03', '2026-09-05')]);
+    });
+    it.each([
+        ['Tab back into the grid', 'tab'], ['a window blur', 'blur'],
+    ] as const)('a delayed toolbar acceptance after %s keeps the draft (Q7, Q16)', async (_label, event) => {
+        const user = userEvent.setup(), onNavigate = vi.fn(), props = selecting({onNavigate});
+        const view = render(tree(props));
+        await user.click(button('Select range'));
+        await keys(user, '2026-09-10', ' {ArrowRight}{ArrowRight}');
+        await user.click(button('Next month'));
+        expect(onNavigate).toHaveBeenLastCalledWith('2026-10-01');
+        if (event === 'tab') {
+            while (!document.activeElement?.matches('[role=gridcell]')) await user.tab();
+            // Back in the grid before the acceptance: the endpoint follows the focused (roving) date.
+            expect(document.activeElement).toBe(cell('2026-09-12'));
+        } else act(() => { window.dispatchEvent(new Event('blur')); });
+        live.read();
+        view.rerender(tree({...props, anchorDate: '2026-10-01'} as CalendarProps));
+        expect(document.querySelector('.nc-selection-line')).not.toBeNull();
+        if (event === 'tab') {
+            // With focus in the grid, the accepted month focuses the clamped date and the endpoint follows it.
+            expect(document.activeElement).toBe(cell('2026-10-12'));
+            expect(live.read()).toEqual(['polite: Range: Sep 10, 2026 – Oct 12, 2026. Available']);
+        } else {
+            // With focus outside the grid, the endpoint stays on 12 September until focus returns to a date.
+            expect(button('Next month')).toHaveFocus();
+            expect(live.read().filter(entry => entry.includes('Range'))).toEqual([]);
+            while (!document.activeElement?.matches('[role=gridcell]')) await user.tab();
+            expect(document.activeElement).toBe(cell('2026-10-12'));
+        }
+        await user.keyboard(' ');
+        expect(changes(props)).toEqual([range('2026-09-10', '2026-10-13')]);
+    });
+    it('a grid month request whose focus intent was cancelled still cancels the draft when it is accepted later (Q7)', async () => {
+        const user = userEvent.setup(), onNavigate = vi.fn(), props = selecting({onNavigate, anchorDate: '2026-01-01', today: '2026-01-15'});
+        const view = render(<StrictMode><CalendarMonth {...props}/><button>After</button></StrictMode>);
+        await user.click(button('Select range'));
+        await keys(user, '2026-01-20', ' {PageDown}');
+        expect(onNavigate).toHaveBeenLastCalledWith('2026-02-01');
+        act(() => { window.dispatchEvent(new Event('blur')); });
+        view.rerender(<StrictMode><CalendarMonth {...props} anchorDate="2026-02-01"/><button>After</button></StrictMode>);
+        expect(document.querySelector('.nc-selection-line')).toBeNull();
+    });
+    it.each([
+        ['a modal sheet (mobile)', {layout: 'mobile', agendaPresentation: 'overlay'}],
+        ['a popover (desktop)', {layout: 'desktop'}],
+    ] as const)('Tab reaches the aria-disabled Select day of a blocked empty day in %s (Q1, Q3)', async (label, presentation) => {
+        const user = userEvent.setup(), props = selecting({...presentation, interactionPolicy: blockedOn('2026-09-10')});
+        render(tree(props));
+        await user.click(cell('2026-09-10'));
+        const dialog = screen.getByRole('dialog'), close = within(dialog).getByRole('button', {name: 'Close day agenda'}), select = within(dialog).getByRole('button', {name: 'Select day'});
+        expect(select).toHaveAttribute('aria-disabled', 'true');
+        // The sheet focuses its heading first, the popover its first control.
+        if (label.includes('sheet')) { expect(within(dialog).getByRole('heading')).toHaveFocus(); await user.tab(); }
+        expect(close).toHaveFocus();
+        await user.tab();
+        expect(select).toHaveFocus(); expect(select).toHaveAccessibleDescription('Closed on 2026-09-10');
+        live.read();
+        await user.keyboard('{Enter}');
+        expect(live.read()).toEqual(['urgent: Action unavailable: Closed on 2026-09-10']);
+        await user.tab();
+        if (label.includes('sheet')) expect(close).toHaveFocus(); // The sheet keeps Tab inside and wraps.
+        else expect(screen.queryByRole('dialog')).toBeNull(); // Past the last control Tab leaves and closes the popover.
+        await user.tab({shift: true});
+        if (label.includes('sheet')) expect(select).toHaveFocus();
+    });
+    it('Shift+Tab out of the open source menu reaches an aria-disabled toolbar command before its trigger', async () => {
+        const user = userEvent.setup(), props = selecting({onCreateRequest() {}, sources: [{id: 'w', title: 'Work'}, {id: 'h', title: 'Home'}], visibleSourceIds: ['w', 'h'],
+            onVisibleSourceIdsChange() {}});
+        render(tree(props));
+        await user.click(button('Calendars'));
+        expect(screen.getByRole('menu')).toBeInTheDocument();
+        await user.tab({shift: true});
+        expect(screen.queryByRole('menu')).toBeNull();
+        expect(button('Create event')).toHaveFocus(); expect(button('Create event')).toHaveAttribute('aria-disabled', 'true');
+    });
+});

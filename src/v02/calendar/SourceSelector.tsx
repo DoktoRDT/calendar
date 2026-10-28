@@ -8,7 +8,7 @@ import {Button, Checkbox, Icon, IconButton, Menu, MenuItem} from '../primitives/
 import {ModalSheet} from '../primitives/ModalSheet.js';
 import {NonModalPopover} from '../primitives/NonModalPopover.js';
 import {activeElement} from './dom.js';
-import {containsComposed, displaced, focusAvailable, logicalExit} from './focus.js';
+import {containsComposed, displaced, focusAvailable, focusReachable, logicalExit} from './focus.js';
 import type {CalendarDataModel} from './model.js';
 import {ModalLiveEndpoints, refocusDisplaced, trackSurfaceFocus} from './overlays.js';
 import {usePortalTarget} from './portal.js';
@@ -119,7 +119,7 @@ function SourceSelectorControl<I, S>({controller, model}: {controller: CalendarC
         // §12.2: the menu sits logically right after its trigger; the trigger itself is skipped.
         const target = logicalExit(trigger.current, surface.current, event.shiftKey), button = trigger.current;
         flushSync(() => close(false));
-        if (target) { event.preventDefault(); event.stopPropagation(); if (!focusAvailable(target)) focusAvailable(button); }
+        if (target) { event.preventDefault(); event.stopPropagation(); if (!focusReachable(target)) focusAvailable(button); }
         else focusAvailable(button);
     };
     const label = model.message('sourceSelectorLabel'), accepted = new Set(model.records.visibleSourceIds), sources = model.records.sources;

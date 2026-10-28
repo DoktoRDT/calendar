@@ -12,7 +12,7 @@ import {classes, resolveClass, usePassiveDiagnostics} from './slots.js';
 import {DayAgendaBody} from './DayAgendaBody.js';
 import {useMessageDiagnostics, type CalendarController} from './useCalendarController.js';
 import {activeElement, revealFocused} from './dom.js';
-import {available, composedParent, containsComposed, displaced, focusAvailable, logicalExit, tabbables} from './focus.js';
+import {available, composedParent, containsComposed, displaced, focusAvailable, focusReachable, logicalExit, reachable, tabbables} from './focus.js';
 import {ActionsPresentationContext, ItemActionsContext, ModalLiveEndpoints, OverlayChildren, OverlayProvider, type ItemActionsScope} from './overlays.js';
 import {SourceSelector} from './SourceSelector.js';
 import {SelectDay, SelectionLine, SelectionToolbar} from './SelectionControls.js';
@@ -45,7 +45,7 @@ type FocusKey = {node: HTMLElement; item?: string; control?: string; heading: bo
 type Recovery = {node: Element | null; date: string | null};
 const agendaOwner = 'agenda';
 /** Select day stays focusable while `aria-disabled` (#11 decision Q1): the same control, not a disabled or removed one. */
-const selectDay = (node: HTMLElement | null | undefined): node is HTMLElement => !!node?.hasAttribute('data-agenda-select') && !!node.parentElement && available(node.parentElement);
+const selectDay = (node: HTMLElement | null | undefined): node is HTMLElement => !!node?.hasAttribute('data-agenda-select') && reachable(node);
 /** The composed ancestor chain of a node, like an event's composed path. */
 function composedPath(node: Element) {
     const path: EventTarget[] = [];
@@ -204,7 +204,7 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
             : old.heading ? heading.current : old.close ? surface?.querySelector<HTMLElement>('[data-agenda-close]')
                 : old.select ? surface?.querySelector<HTMLElement>('[data-agenda-select]') : old.container ? surface : undefined;
         if (surface && focusAvailable(replacement)) return owned;
-        if (surface && selectDay(replacement)) { replacement.focus({preventScroll: true}); if (activeElement(document) === replacement) return owned; }
+        if (surface && selectDay(replacement) && focusReachable(replacement)) return owned;
         // Missing logical control: §12.3 from the date cell, never a newly opened overlay.
         ownedFocus.current = null;
         if (overlay) { setOwner(null); setMounted(null); pendingRecovery.current = {node: old.node, date: old.date}; }
@@ -263,7 +263,7 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
         }
         if (!surface) return;
         intent.current = null;
-        if (rule.focus === 'first-control') { if (!focusAvailable(tabbables(surface)[0])) focusAvailable(heading.current); }
+        if (rule.focus === 'first-control') { if (!focusAvailable(tabbables(surface).find(available))) focusAvailable(heading.current); }
         // The inline agenda keeps its place below the grid, often below the fold: its focused heading is revealed (§12.5).
         else if (rule.focus === 'heading' && focusAvailable(heading.current) && presentation === 'inline') revealFocused(document);
         else if (rule.announce && containsComposed(root, activeElement(document))) {
@@ -314,7 +314,7 @@ function MonthSurface<I, S>({controller, headingId}: {controller: CalendarContro
             // focus on the trigger supplies the browser's starting point, without trapping Tab.
             flushSync(() => close(false));
             // A target that cannot take focus leaves it on the trigger, never on body (§12.3).
-            if (target) { event.preventDefault(); if (!focusAvailable(target)) focusAvailable(trigger); }
+            if (target) { event.preventDefault(); if (!focusReachable(target)) focusAvailable(trigger); }
             else focusAvailable(trigger);
         }
     };

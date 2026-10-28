@@ -115,6 +115,8 @@ function DataMonth<I, S>({controller, model, headingId, onDateActivate, popup, o
                                 <LocalizedText value={model.message('itemCountLabel', day.date, day.itemCount)}/>{' '}
                                 {dayState.isToday && <><LocalizedText value={model.message('todayStateLabel')}/>{' '}</>}
                                 {dayState.isSelected && <><LocalizedText value={model.message('selectedStateLabel')}/>{' '}</>}
+                                {/* Decision Q4: every draft cell, the endpoint included, says so; the range itself is spoken by the target speech. */}
+                                {dayState.isSelectionDraft && <><LocalizedText value={model.message('selectionDraftStateLabel')}/>{' '}</>}
                                 {/* Decision Q4: always the state; the reason only during the selection draft it belongs to. */}
                                 {block && <><LocalizedText value={model.message('unavailableStateLabel')}/>{' '}
                                     {selection.draftActive && <><SelectionReason model={model} block={block}/>{' '}</>}</>}

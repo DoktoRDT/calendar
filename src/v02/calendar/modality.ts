@@ -1,5 +1,5 @@
 import {activeElement, focusElement} from './dom.js';
-import {available, composedParent, containsComposed, tabbables} from './focus.js';
+import {available, composedParent, containsComposed, focusReachable, tabbables} from './focus.js';
 import {modalContainer} from './portal.js';
 
 /**
@@ -133,7 +133,7 @@ function lockScroll(document: Document) {
 }
 function restore(layer: Layer) {
     if (layer.last && available(layer.last) && focusElement(layer.last)) return;
-    focusElement(tabbables(layer.surface)[0] ?? layer.surface.querySelector<HTMLElement>('[tabindex="-1"]'));
+    focusElement(tabbables(layer.surface).find(available) ?? layer.surface.querySelector<HTMLElement>('[tabindex="-1"]'));
 }
 
 function update(registry: Registry) {
@@ -169,7 +169,7 @@ function update(registry: Registry) {
     // A host dialog shown while its content was background has no focus yet; when it closes, focus returns here.
     if (yielded) {
         const layer = registry.yielded[registry.yielded.length - 1];
-        (layer.querySelector<HTMLElement>('[autofocus]') ?? tabbables(layer)[0] ?? layer as HTMLElement).focus({preventScroll: true});
+        (layer.querySelector<HTMLElement>('[autofocus]') ?? tabbables(layer).find(available) ?? layer as HTMLElement).focus({preventScroll: true});
     } else if (top) restore(top);
 }
 
@@ -214,7 +214,7 @@ function registryOf(document: Document): Registry {
         const last = nodes[nodes.length - 1];
         const next = event.shiftKey ? index > 0 ? nodes[index - 1] : index === 0 ? last : [...nodes].reverse().find(node => !after(node)) ?? last
             : index >= 0 ? nodes[(index + 1) % nodes.length] : nodes.find(after) ?? nodes[0];
-        if (focusElement(next)) next?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+        if (focusReachable(next)) next?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
     };
     // Child-list changes add background nodes; attribute changes open or close host dialogs.
     // `inert`/`aria-hidden` changes show a host modal that covers the stack, also on a layer's own top-level node.

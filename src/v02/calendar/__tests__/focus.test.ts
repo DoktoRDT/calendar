@@ -1,11 +1,20 @@
 import {afterEach, describe, expect, it} from 'vitest';
-import {available, containsComposed, inertComposed, logicalExit, tabbables} from '../focus.js';
+import {available, containsComposed, focusReachable, inertComposed, logicalExit, reachable, tabbables} from '../focus.js';
 
 afterEach(() => document.body.replaceChildren());
 describe('composed agenda sequential focus', () => {
     it('skips hidden/inert/disabled ancestors and preserves positive tabindex order', () => {
         document.body.innerHTML = '<button id="normal">Normal</button><button tabindex="2" id="two">Two</button><button tabindex="1" id="one">One</button><div style="display:none"><button>Hidden</button></div><div inert><button>Inert</button></div><button disabled>Disabled</button>';
         expect(tabbables(document.body).map(n => n.id)).toEqual(['one', 'two', 'normal']);
+    });
+    it('keeps an aria-disabled control in the sequential order, but not as a usable target (#11)', () => {
+        document.body.innerHTML = '<button id="before">Before</button><button id="unavailable" aria-disabled="true">Unavailable</button><button id="native" disabled>Native</button>';
+        const unavailable = document.getElementById('unavailable')!;
+        expect(tabbables(document.body).map(n => n.id)).toEqual(['before', 'unavailable']);
+        expect(reachable(unavailable)).toBe(true); expect(available(unavailable)).toBe(false);
+        expect(reachable(document.getElementById('native')!)).toBe(false);
+        expect(focusReachable(unavailable)).toBe(true); expect(document.activeElement).toBe(unavailable);
+        expect(logicalExit(document.getElementById('before')!, document.createElement('div'), false)).toBe(unavailable);
     });
     it('flattens nested shadow/slot scopes with local positive tabindex order', () => {
         document.body.innerHTML = '<button id="before">Before</button><div id="host"><button id="slotted">Slot</button></div><button id="after">After</button>';

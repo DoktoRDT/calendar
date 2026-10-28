@@ -10,7 +10,7 @@ import {Button, Icon, IconButton, Menu, MenuItem} from '../primitives/index.js';
 import {NonModalPopover} from '../primitives/NonModalPopover.js';
 import {ModalSheet} from '../primitives/ModalSheet.js';
 import {activeElement, writeLive} from './dom.js';
-import {available, containsComposed, focusAvailable, inertComposed, tabbables} from './focus.js';
+import {available, containsComposed, focusAvailable, focusReachable, inertComposed, tabbables} from './focus.js';
 
 const useClientLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 export type LiveEndpoints = {polite: HTMLElement | null; urgent: HTMLElement | null};
@@ -231,7 +231,7 @@ function ChildSurface({child, scope}: {child: Child; scope: OverlayScope}) {
         const target = index >= 0 ? order[index + (backwards ? -1 : 1)] : backwards
             ? child.order.slice(0, Math.max(child.index, 0)).reverse().find(usable) : child.order.slice(child.index + 1).find(usable);
         flushSync(() => stack.close(child.id, false));
-        if (target) { event.preventDefault(); event.stopPropagation(); focusAvailable(target); }
+        if (target) { event.preventDefault(); event.stopPropagation(); focusReachable(target); }
         // No target inside the parent: the parent's own Tab rule continues from the trigger.
         else focusAvailable(child.trigger.isConnected ? child.trigger : null);
     };
@@ -327,7 +327,7 @@ export function refocusDisplaced(surface: HTMLElement | null) {
     const document = surface?.ownerDocument, active = document && activeElement(document), last = surface && lastFocused.get(surface);
     const displaced = !!last && (!last.node.isConnected || (last.node as HTMLButtonElement).disabled === true);
     if (!surface?.isConnected || !document || !last || !displaced || active && active !== document.body && active !== last.node) return;
-    focusAvailable(neighbor(surface, last) ?? firstControl(surface) ?? tabbables(surface)[0]);
+    focusAvailable(neighbor(surface, last) ?? firstControl(surface) ?? tabbables(surface).find(available));
 }
 function neighbor(surface: HTMLElement, last: {node: Element; controls: readonly HTMLElement[]}) {
     const index = last.controls.indexOf(last.node as HTMLElement);
